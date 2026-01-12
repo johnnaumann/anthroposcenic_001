@@ -453,12 +453,81 @@ export async function prepareImageForComfyUI(
 
 /**
  * Poll ComfyUI job status and get results
+ * Uses WebSocket for real-time progress, falls back to HTTP polling for final image detection
  */
 export async function* pollComfyUIJob(
   promptId: string,
   maxAttempts: number = 300, // Increased to 10 minutes (300 * 2s = 600s)
-  intervalMs: number = 2000
-): AsyncGenerator<{ status: string; progress?: number; imageUrl?: string }, void, unknown> {
+  intervalMs: number = 2000,
+  useWebSocket: boolean = true // Enable WebSocket for real-time progress
+): AsyncGenerator<{ status: string; progress?: number; imageUrl?: string; error?: string }, void, unknown> {
+  // Try WebSocket first if enabled
+  if (useWebSocket) {
+    try {
+      const { streamComfyUIProgress } = await import('./comfyui-ws');
+      let wsCompleted = false;
+      
+      // Stream WebSocket progress updates
+      for await (const update of streamComfyUIProgress(promptId)) {
+        if (update.status === 'error') {
+          yield update;
+          return;
+        }
+        if (update.status === 'timeout') {
+          // Fall through to HTTP polling
+          break;
+        }
+        yield update;
+        
+        // If execution completed via WebSocket, check history for final image
+        if (update.progress === 99) {
+          wsCompleted = true;
+          break;
+        }
+      }
+      
+      // If WebSocket indicated completion, check history for final image
+      if (wsCompleted) {
+        // Check history for completed job with outputs
+        const history = await getAllComfyUIHistory();
+        if (history && history[promptId]) {
+          const jobData = history[promptId] as {
+            outputs?: {
+              [nodeId: string]: {
+                images?: Array<{
+                  filename: string;
+                  subfolder?: string;
+                  type?: string;
+                }>;
+              };
+            };
+          };
+          
+          if (jobData.outputs) {
+            for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
+              if (nodeOutputs.images && nodeOutputs.images.length > 0) {
+                const image = nodeOutputs.images[0];
+                const filename = image.filename;
+                const subfolder = image.subfolder || '';
+                const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
+                const imageUrl = getComfyUIOutputImage(imagePath);
+                
+                console.log(`✅ ComfyUI job ${promptId} completed via WebSocket! Image: ${filename}`);
+                yield { status: 'complete', progress: 100, imageUrl };
+                return;
+              }
+            }
+          }
+        }
+        // If no image found yet, fall through to HTTP polling
+      }
+    } catch (error) {
+      console.warn('WebSocket connection failed, falling back to HTTP polling:', error);
+      // Fall through to HTTP polling
+    }
+  }
+  
+  // HTTP polling fallback (original implementation)
   let attempts = 0;
   let wasInQueue = false;
 
@@ -485,12 +554,12 @@ export async function* pollComfyUIJob(
       
       // If not found in specific history, check all history:
       // - Every attempt if job was in queue but is no longer running (most aggressive)
-      // - Every 3 attempts if job was in queue and still processing
+      // - Every 2 attempts if job was in queue and still processing (more frequent)
       // - Every 5 attempts otherwise
       if (!history) {
         const shouldCheckAllHistory = 
           (wasInQueue && !isStillRunning && !isPending) || // Job left queue - check every time
-          (wasInQueue && attempts % 3 === 0) || // Job in queue - check every 3 attempts
+          (wasInQueue && attempts % 2 === 0) || // Job in queue - check every 2 attempts (more frequent)
           (!wasInQueue && attempts % 5 === 0); // Job never in queue - check every 5 attempts
         
         if (shouldCheckAllHistory) {
@@ -525,8 +594,36 @@ export async function* pollComfyUIJob(
                 };
               };
             }>;
+            messages?: Array<[string, unknown]>;
+            node_errors?: Record<string, string[]>;
           };
         };
+        
+        // Check for execution errors first
+        if (jobData.status?.node_errors && Object.keys(jobData.status.node_errors).length > 0) {
+          const errorMessages = Object.entries(jobData.status.node_errors)
+            .map(([node, errors]) => `Node ${node}: ${errors.join(', ')}`)
+            .join('; ');
+          console.error(`ComfyUI job ${promptId} has errors:`, errorMessages);
+          throw new Error(`ComfyUI workflow errors: ${errorMessages}`);
+        }
+        
+        // Check for execution failure messages
+        const hasFailureMessage = jobData.status?.messages?.some(
+          (msg) => Array.isArray(msg) && msg[0] === 'execution_error' || msg[0] === 'execution_interrupted'
+        );
+        if (hasFailureMessage) {
+          const failureMsg = jobData.status.messages.find(
+            (msg) => Array.isArray(msg) && (msg[0] === 'execution_error' || msg[0] === 'execution_interrupted')
+          );
+          console.error(`ComfyUI job ${promptId} failed:`, failureMsg);
+          throw new Error(`ComfyUI execution failed: ${JSON.stringify(failureMsg)}`);
+        }
+        
+        // Check for execution_success message (indicates completion)
+        const hasSuccessMessage = jobData.status?.messages?.some(
+          (msg) => Array.isArray(msg) && msg[0] === 'execution_success'
+        );
         
         // Check for outputs in the job data (ComfyUI history structure)
         if (jobData.outputs) {
@@ -546,7 +643,36 @@ export async function* pollComfyUIJob(
               return;
             }
           }
+          // If we have success message but no images yet, wait a bit more
+          if (hasSuccessMessage) {
+            console.log(`Job ${promptId} shows execution_success but no images yet, waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Re-check history after short wait
+            const recheckHistory = await getAllComfyUIHistory();
+            if (recheckHistory && recheckHistory[promptId]) {
+              const recheckData = recheckHistory[promptId] as typeof jobData;
+              if (recheckData.outputs) {
+                for (const [nodeId, nodeOutputs] of Object.entries(recheckData.outputs)) {
+                  if (nodeOutputs.images && nodeOutputs.images.length > 0) {
+                    const image = nodeOutputs.images[0];
+                    const filename = image.filename;
+                    const subfolder = image.subfolder || '';
+                    const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
+                    const imageUrl = getComfyUIOutputImage(imagePath);
+                    console.log(`✅ ComfyUI job ${promptId} completed after recheck! Image: ${filename}`);
+                    yield { status: 'complete', progress: 100, imageUrl };
+                    return;
+                  }
+                }
+              }
+            }
+          }
           console.warn(`Prompt ${promptId} found in history but no images in outputs`);
+        } else if (hasSuccessMessage) {
+          // Execution succeeded but outputs not populated yet - wait and recheck
+          console.log(`Job ${promptId} shows execution_success but outputs not ready, waiting...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue; // Re-check in next iteration
         } else {
           console.warn(`Prompt ${promptId} found in history but no outputs field`);
         }
@@ -617,7 +743,8 @@ export async function* pollComfyUIJob(
       attempts++;
     } catch (error) {
       console.error('Error polling ComfyUI job:', error);
-      yield { status: 'error' };
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      yield { status: 'error', error: errorMessage };
       return;
     }
   }

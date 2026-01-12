@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
           closeStream(controller);
           return;
         } else if (update.status === 'error') {
-          sendStreamError(controller, 'ComfyUI processing failed');
+          sendStreamError(controller, update.error || 'ComfyUI processing failed');
           return;
         } else if (update.status === 'timeout') {
           sendStreamError(controller, 'ComfyUI processing timed out');
