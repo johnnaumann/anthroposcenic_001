@@ -17,8 +17,6 @@ flowchart LR
     style D fill:#737373
     style E fill:#525252
 ```
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-grep
 
 ## Why Local?
 
