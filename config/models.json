@@ -1,13 +1,21 @@
 {
   "ollama": {
-    "default": "qwen3-vl:8b",
+    "default": "llava:7b",
     "vision": {
+      "llava:7b": {
+        "name": "llava:7b",
+        "displayName": "LLaVA 7B (Recommended)",
+        "description": "Fast and reliable vision model",
+        "size": "~4GB",
+        "recommended": true,
+        "features": ["vision", "fast", "reliable"]
+      },
       "qwen3-vl:8b": {
         "name": "qwen3-vl:8b",
-        "displayName": "Qwen3-VL 8B (Recommended)",
+        "displayName": "Qwen3-VL 8B",
         "description": "Excellent vision understanding with thinking process support",
         "size": "~6GB",
-        "recommended": true,
+        "recommended": false,
         "features": ["vision", "thinking", "detailed-descriptions"]
       },
       "qwen2.5-vl:latest": {
@@ -17,14 +25,6 @@
         "size": "~7GB",
         "recommended": false,
         "features": ["vision", "thinking", "detailed-descriptions"]
-      },
-      "llava:7b": {
-        "name": "llava:7b",
-        "displayName": "LLaVA 7B (Fast)",
-        "description": "Faster inference, smaller model",
-        "size": "~4GB",
-        "recommended": false,
-        "features": ["vision", "fast"]
       },
       "llava:latest": {
         "name": "llava:latest",

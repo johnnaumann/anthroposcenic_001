@@ -14,9 +14,10 @@ export interface OllamaStreamOptions {
 
 /**
  * Convert image buffer to base64
+ * Note: Ollama expects raw base64 without data URI prefix
  */
 export function imageToBase64(buffer: Buffer, mimeType: string): string {
-  return `data:${mimeType};base64,${buffer.toString('base64')}`;
+  return buffer.toString('base64');
 }
 
 /**
