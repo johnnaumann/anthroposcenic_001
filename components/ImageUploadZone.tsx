@@ -27,6 +27,31 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
     setError(null);
 
     try {
+      // Restart Ollama and ComfyUI services for clean state
+      setError('Restarting services for clean state...');
+      try {
+        const restartResponse = await fetch('/api/services/restart', {
+          method: 'POST',
+        });
+        
+        if (!restartResponse.ok) {
+          const restartError = await restartResponse.json();
+          console.warn('[Upload] Service restart warning:', restartError);
+          // Continue anyway - services might already be running or restarting
+        } else {
+          const restartData = await restartResponse.json();
+          console.log('[Upload] Services restarted:', restartData);
+        }
+      } catch (restartError) {
+        console.warn('[Upload] Service restart failed, continuing anyway:', restartError);
+        // Continue with upload even if restart fails - services might be running
+      }
+
+      // Small delay to ensure services are ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Upload the image
+      setError('Uploading image...');
       const formData = new FormData();
       formData.append('file', file);
 
@@ -42,6 +67,7 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
 
       const data: UploadResponse = await response.json();
       setPreview(data.imageUrl);
+      setError(null);
       onUploadComplete(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');

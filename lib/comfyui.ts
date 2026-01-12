@@ -303,8 +303,9 @@ export async function createComfyUIWorkflow(
     steps?: number; // Number of sampling steps
     cfgScale?: number; // CFG scale
     denoiseStrength?: number; // Denoising strength for img2img (0-1)
-    maxWidth?: number; // Maximum image width (default: 512 for memory optimization)
-    maxHeight?: number; // Maximum image height (default: 512 for memory optimization)
+    maxWidth?: number; // Maximum image width (optional, images are now compressed at upload)
+    maxHeight?: number; // Maximum image height (optional, images are now compressed at upload)
+    useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   const {
@@ -313,8 +314,9 @@ export async function createComfyUIWorkflow(
     steps = 15, // Reduced from 20 to save memory
     cfgScale = 7.0,
     denoiseStrength = 0.75,
-    maxWidth = 512, // Limit image size to reduce memory usage
-    maxHeight = 512,
+    maxWidth = 1024, // Default max (images are pre-compressed at upload to 1024px max)
+    maxHeight = 1024,
+    useImageResize = false, // Images are now compressed at upload, so resize node is optional
   } = options;
 
   // Get available checkpoints if none provided
@@ -329,9 +331,10 @@ export async function createComfyUIWorkflow(
   }
 
   // Generate unique node IDs
+  // Images are now compressed at upload, so resize node is optional
   const nodeIds = {
     loadImage: '1',
-    resizeImage: '2', // Added for memory optimization
+    resizeImage: '2', // Optional - only used if useImageResize is true
     loadCheckpoint: '3',
     clipTextEncode: '4',
     clipTextEncodeNegative: '5',
@@ -340,6 +343,9 @@ export async function createComfyUIWorkflow(
     vaeDecode: '8',
     saveImage: '9',
   };
+
+  // Determine image source (resized or direct)
+  const imageSource = useImageResize ? nodeIds.resizeImage : nodeIds.loadImage;
 
   // Build the workflow
   const workflow: ComfyUIWorkflow = {
@@ -352,25 +358,27 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'Load Image' },
     },
 
-    // Node 2: Resize Image (Memory optimization - limit size)
-    // ImageScale node expects "image" (singular) not "images"
-    [nodeIds.resizeImage]: {
-      class_type: 'ImageScale',
-      inputs: {
-        image: [nodeIds.loadImage, 0], // Fixed: use "image" not "images"
-        upscale_method: 'lanczos',
-        crop: 'disabled',
-        width: maxWidth,
-        height: maxHeight,
+    // Node 2: Resize Image (Optional - only if useImageResize is true)
+    // Images are now pre-compressed at upload, so this is usually not needed
+    ...(useImageResize ? {
+      [nodeIds.resizeImage]: {
+        class_type: 'ImageScale',
+        inputs: {
+          image: [nodeIds.loadImage, 0],
+          upscale_method: 'lanczos',
+          crop: 'disabled',
+          width: maxWidth,
+          height: maxHeight,
+        },
+        _meta: { title: 'Resize Image (Optional)' },
       },
-      _meta: { title: 'Resize Image (Memory Optimization)' },
-    },
+    } : {}),
 
     // Node 3: Load Checkpoint (Model)
     [nodeIds.loadCheckpoint]: {
       class_type: 'CheckpointLoaderSimple',
       inputs: {
-        ckpt_name: checkpoint, // Empty string will use default/first available
+        ckpt_name: checkpoint,
       },
       _meta: { title: 'Load Checkpoint' },
     },
@@ -380,7 +388,7 @@ export async function createComfyUIWorkflow(
       class_type: 'CLIPTextEncode',
       inputs: {
         text: description,
-        clip: [nodeIds.loadCheckpoint, 1], // Connect to CLIP output of checkpoint loader
+        clip: [nodeIds.loadCheckpoint, 1],
       },
       _meta: { title: 'CLIP Text Encode (Positive)' },
     },
@@ -399,8 +407,8 @@ export async function createComfyUIWorkflow(
     [nodeIds.vaeEncode]: {
       class_type: 'VAEEncode',
       inputs: {
-        pixels: [nodeIds.resizeImage, 0], // Connect to resized image output
-        vae: [nodeIds.loadCheckpoint, 2], // Connect to VAE output of checkpoint loader
+        pixels: [imageSource, 0], // Connect to image source (resized if enabled, otherwise direct)
+        vae: [nodeIds.loadCheckpoint, 2],
       },
       _meta: { title: 'VAE Encode' },
     },
@@ -738,22 +746,30 @@ export async function* pollComfyUIJob(
       }
 
       // Calculate progress based on queue position
+      // Note: This is fallback progress estimation when WebSocket is not available
+      // WebSocket provides actual progress values that match terminal output
       const queueRemaining = queuePending.length + (isStillRunning ? 1 : 0);
       
-      // Estimate progress: 0-90% based on queue, 90-99% when processing
+      // Estimate progress for HTTP polling fallback
+      // WebSocket should provide actual progress values
       let progress: number;
       if (isStillRunning) {
-        // Job is running, estimate 90-99% (will be 100% when complete)
-        progress = Math.min(99, 90 + Math.min(9, attempts * 0.05));
+        // Job is running, estimate 50-95% (will be 100% when complete)
+        // Actual progress comes from WebSocket if available
+        progress = Math.min(95, 50 + Math.min(45, attempts * 0.1));
+        console.log(`[HTTP Poll] Job running, estimated progress: ${progress}% (attempt ${attempts})`);
       } else if (isPending) {
-        // Job is pending in queue
-        progress = Math.min(90, Math.max(10, 100 - (queueRemaining * 15)));
+        // Job is pending in queue (0-20% range)
+        progress = Math.min(20, Math.max(0, 20 - (queueRemaining * 5)));
+        console.log(`[HTTP Poll] Job pending in queue (${queueRemaining} remaining), progress: ${progress}%`);
       } else if (wasInQueue) {
         // Job was in queue but no longer there - might be completing
-        progress = 98;
+        progress = 95;
+        console.log(`[HTTP Poll] Job left queue, estimated progress: ${progress}%`);
       } else {
         // No queue info, use attempt-based progress
-        progress = Math.min(95, attempts * 0.5);
+        progress = Math.min(50, attempts * 0.2);
+        console.log(`[HTTP Poll] No queue info, estimated progress: ${progress}% (attempt ${attempts})`);
       }
 
       yield { status: 'processing', progress };

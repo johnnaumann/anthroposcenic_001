@@ -223,6 +223,13 @@ COMFYUI_HOST=http://localhost:8188
 # Storage
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
+
+# Image Compression (automatic during upload)
+MAX_IMAGE_WIDTH=1024      # Maximum width in pixels (preserves aspect ratio)
+MAX_IMAGE_HEIGHT=1024     # Maximum height in pixels (preserves aspect ratio)
+JPEG_QUALITY=85           # JPEG quality 1-100 (higher = better quality, larger file)
+PNG_QUALITY=90            # PNG quality 1-100
+WEBP_QUALITY=85           # WebP quality 1-100
 ```
 
 ### Model Configuration

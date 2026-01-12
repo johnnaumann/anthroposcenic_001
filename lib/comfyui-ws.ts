@@ -56,7 +56,7 @@ export async function* streamComfyUIProgress(
   };
 
   ws.on('open', () => {
-    console.log(`WebSocket connected to ComfyUI for prompt ${promptId}`);
+    console.log(`[WebSocket] Connected to ComfyUI for prompt ${promptId}`);
   });
 
   ws.on('message', (data: WebSocket.Data) => {
@@ -69,22 +69,24 @@ export async function* streamComfyUIProgress(
       }
       
       // Handle progress updates
+      // ComfyUI sends progress as value/max (e.g., 5/20 = 25%)
       if (message.type === 'progress') {
         const current = message.value || 0;
         const max = message.max || 100;
-        const progress = Math.floor((current / max) * 100);
+        // Calculate actual percentage (0-100%)
+        const progress = max > 0 ? Math.floor((current / max) * 100) : 0;
         
-        // Yield progress update (10-90% during processing)
-        const adjustedProgress = Math.max(10, Math.min(90, 10 + Math.floor((progress / 100) * 80)));
-        sendUpdate({ status: 'processing', progress: adjustedProgress });
+        // Use actual progress value (no adjustment) to match terminal output
+        console.log(`[WebSocket] Progress: ${current}/${max} = ${progress}%`);
+        sendUpdate({ status: 'processing', progress });
       }
       
       // Handle execution start
       if (message.type === 'execution_start') {
         const data = message.data as { prompt_id?: string } | undefined;
         if (!data || data.prompt_id === promptId) {
-          console.log(`Execution started for prompt ${promptId}`);
-          sendUpdate({ status: 'processing', progress: 10 });
+          console.log(`[WebSocket] Execution started for prompt ${promptId}`);
+          sendUpdate({ status: 'processing', progress: 0 }); // Start at 0%, progress messages will update
         }
       }
       
@@ -92,8 +94,9 @@ export async function* streamComfyUIProgress(
       if (message.type === 'execution_cached') {
         const data = message.data as { prompt_id?: string } | undefined;
         if (!data || data.prompt_id === promptId) {
-          console.log(`Execution cached for prompt ${promptId}`);
-          sendUpdate({ status: 'processing', progress: 20 });
+          console.log(`[WebSocket] Execution cached for prompt ${promptId}`);
+          // Cached execution is fast, but still show progress from actual progress messages
+          sendUpdate({ status: 'processing', progress: 0 });
         }
       }
       
@@ -102,8 +105,8 @@ export async function* streamComfyUIProgress(
         const data = message.data as { prompt_id?: string } | undefined;
         if (!data || data.prompt_id === promptId) {
           executionCompleted = true;
-          console.log(`Execution success for prompt ${promptId}`);
-          sendUpdate({ status: 'processing', progress: 99 });
+          console.log(`[WebSocket] Execution success for prompt ${promptId}`);
+          sendUpdate({ status: 'processing', progress: 100 }); // Use 100% to match terminal
           // Close after short delay to allow history to populate
           setTimeout(() => {
             if (!isClosed) {
@@ -111,7 +114,7 @@ export async function* streamComfyUIProgress(
               clearTimeout(timeoutId);
               ws.close();
               if (pendingResolve) {
-                pendingResolve({ status: 'processing', progress: 99 });
+                pendingResolve({ status: 'processing', progress: 100 });
               }
             }
           }, 2000);
@@ -133,12 +136,14 @@ export async function* streamComfyUIProgress(
         }
       }
       
-      // Handle status updates
+      // Handle status updates (queue information)
       if (message.type === 'status' && message.status) {
         const execInfo = message.status.exec_info;
         if (execInfo && execInfo.queue_remaining !== undefined) {
           const queueRemaining = execInfo.queue_remaining;
-          const queueProgress = Math.max(5, Math.min(90, 100 - (queueRemaining * 10)));
+          // Show queue position as progress (0-10% range for queue waiting)
+          const queueProgress = Math.max(0, Math.min(10, 10 - (queueRemaining * 2)));
+          console.log(`[WebSocket] Queue remaining: ${queueRemaining}, progress: ${queueProgress}%`);
           sendUpdate({ status: 'processing', progress: queueProgress });
         }
       }
@@ -148,7 +153,7 @@ export async function* streamComfyUIProgress(
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    console.error('[WebSocket] Error:', error);
     if (!isClosed) {
       isClosed = true;
       clearTimeout(timeoutId);
@@ -157,13 +162,13 @@ export async function* streamComfyUIProgress(
   });
 
   ws.on('close', () => {
-    console.log(`WebSocket closed for prompt ${promptId}`);
+    console.log(`[WebSocket] Closed for prompt ${promptId}`);
     if (!isClosed) {
       isClosed = true;
       clearTimeout(timeoutId);
     }
     if (pendingResolve && !executionCompleted) {
-      pendingResolve({ status: 'processing', progress: 99 });
+      pendingResolve({ status: 'processing', progress: 100 });
     }
   });
 
