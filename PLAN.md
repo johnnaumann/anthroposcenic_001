@@ -1,20 +1,24 @@
 # Anthroposcenic Application Plan
 
 ## Overview
-A Next.js application that processes images through an AI pipeline:
-1. Upload an image
-2. Generate a text description using Ollama (thinking model like Qwen)
+A **completely local, privacy-first** Next.js application that processes images through an AI pipeline entirely on your machine:
+
+1. Upload an image (stored locally)
+2. Generate a text description using **local Ollama** (thinking model like Qwen)
 3. Stream the description to the browser
-4. Send image + description to ComfyUI
+4. Send image + description to **local ComfyUI**
 5. Stream ComfyUI output back to the application
+
+**All processing happens locally - no cloud services, no external API calls, complete privacy.**
 
 ## Technology Stack
 - **Framework**: Next.js (App Router)
 - **Styling**: Tailwind CSS
 - **UI Components**: ShadCN UI
-- **AI Model**: Ollama (Qwen or similar thinking model)
-- **Image Processing**: ComfyUI
+- **AI Model**: Ollama (local, runs on `localhost:11434`)
+- **Image Processing**: ComfyUI (local, runs on `localhost:8188`)
 - **Streaming**: Server-Sent Events (SSE) or Streaming Responses
+- **Architecture**: 100% Local - All services run on the user's machine
 
 ## Application Architecture
 
@@ -164,22 +168,24 @@ A Next.js application that processes images through an AI pipeline:
 
 ## API Integration Details
 
-### Ollama Integration
-- **Endpoint**: `http://localhost:11434/api/generate` (default)
-- **Model**: Qwen2.5-VL or similar vision + thinking model
+### Ollama Integration (Local)
+- **Endpoint**: `http://localhost:11434/api/generate` (local only)
+- **Model**: Qwen2.5-VL or similar vision + thinking model (installed locally)
 - **Request Format**: 
   - Image as base64 or file path
   - Prompt: "Describe this image in detail for use in ComfyUI workflow generation"
 - **Streaming**: Use `stream: true` parameter
 - **Response Format**: JSON with `response` field containing tokens
+- **Privacy**: All processing happens on local machine, no external API calls
 
-### ComfyUI Integration
-- **Endpoint**: `http://localhost:8188` (default)
-- **API**: ComfyUI WebSocket or REST API
-- **Workflow**: Construct workflow JSON with image and text prompt
-- **Queue**: Submit job to ComfyUI queue
+### ComfyUI Integration (Local)
+- **Endpoint**: `http://localhost:8188` (local only)
+- **API**: ComfyUI REST API (workflows built programmatically in code)
+- **Workflow**: Construct workflow JSON programmatically with image and text prompt
+- **Queue**: Submit job to local ComfyUI queue
 - **Polling/Streaming**: Monitor job status and stream updates
-- **Output**: Retrieve processed images from ComfyUI output
+- **Output**: Retrieve processed images from local ComfyUI output
+- **Privacy**: All image processing happens on local machine
 
 ## State Management
 
@@ -217,15 +223,15 @@ A Next.js application that processes images through an AI pipeline:
 ## Environment Variables
 
 ```env
-# Ollama Configuration
+# Ollama Configuration (Local - runs on your machine)
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-vl:latest
 
-# ComfyUI Configuration
+# ComfyUI Configuration (Local - runs on your machine)
 COMFYUI_HOST=http://localhost:8188
 COMFYUI_WS_URL=ws://localhost:8188/ws
 
-# File Upload
+# File Upload (Local storage)
 MAX_FILE_SIZE=10485760  # 10MB
 UPLOAD_DIR=./uploads
 TEMP_DIR=./temp
@@ -233,6 +239,8 @@ TEMP_DIR=./temp
 # Next.js
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
+
+**Important:** All services must run on `localhost`. This is a local-only application with no external dependencies.
 
 ## File Structure
 

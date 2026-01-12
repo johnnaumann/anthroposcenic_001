@@ -1,0 +1,43 @@
+{
+  "ollama": {
+    "default": "qwen2.5-vl:latest",
+    "vision": {
+      "qwen2.5-vl:latest": {
+        "name": "qwen2.5-vl:latest",
+        "displayName": "Qwen2.5-VL (Recommended)",
+        "description": "Excellent vision understanding with thinking process support",
+        "size": "~7GB",
+        "recommended": true,
+        "features": ["vision", "thinking", "detailed-descriptions"]
+      },
+      "llava:latest": {
+        "name": "llava:latest",
+        "displayName": "LLaVA (Fast)",
+        "description": "Faster inference, smaller model",
+        "size": "~4GB",
+        "recommended": false,
+        "features": ["vision", "fast"]
+      },
+      "llava:13b": {
+        "name": "llava:13b",
+        "displayName": "LLaVA 1.6 13B (High Quality)",
+        "description": "Higher quality descriptions, larger model",
+        "size": "~7GB",
+        "recommended": false,
+        "features": ["vision", "high-quality"]
+      },
+      "bakllava:latest": {
+        "name": "bakllava:latest",
+        "displayName": "BakLLaVA",
+        "description": "Alternative vision model",
+        "size": "~4GB",
+        "recommended": false,
+        "features": ["vision"]
+      }
+    }
+  },
+  "comfyui": {
+    "defaultCheckpoint": "",
+    "checkpoints": []
+  }
+}
