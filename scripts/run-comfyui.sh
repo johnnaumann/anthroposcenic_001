@@ -53,6 +53,14 @@ cd "$COMFYUI_DIR"
 # Set PYTHONDONTWRITEBYTECODE to avoid cache issues
 export PYTHONDONTWRITEBYTECODE=1
 
+# Force CPU-only mode on macOS (disable MPS to prevent memory issues)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    export PYTORCH_ENABLE_MPS_FALLBACK=0
+    export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
+    # Disable MPS entirely to force CPU
+    export PYTORCH_MPS_ENABLE=0
+fi
+
 # Build command with optional memory flags
 # Add --use-split-cross-attention for additional memory optimization on CPU
 CMD="$COMFYUI_DIR/venv/bin/python -B main.py --port $PORT"

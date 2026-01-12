@@ -140,12 +140,15 @@ export async function POST(request: NextRequest) {
 
       // Create or use custom workflow
       // The workflow is built programmatically with all nodes and connections
+      // Memory optimization: reduced steps and limited image size
       const workflow = customWorkflow
         ? JSON.parse(customWorkflow)
         : await createComfyUIWorkflow(comfyImageFilename, description, {
-            steps: 20,
+            steps: 15, // Reduced from 20 for memory optimization
             cfgScale: 7.0,
             denoiseStrength: 0.75,
+            maxWidth: 512, // Limit image size to reduce memory usage
+            maxHeight: 512,
           });
 
       // Send initial status

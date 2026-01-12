@@ -303,14 +303,18 @@ export async function createComfyUIWorkflow(
     steps?: number; // Number of sampling steps
     cfgScale?: number; // CFG scale
     denoiseStrength?: number; // Denoising strength for img2img (0-1)
+    maxWidth?: number; // Maximum image width (default: 512 for memory optimization)
+    maxHeight?: number; // Maximum image height (default: 512 for memory optimization)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   const {
     checkpoint: providedCheckpoint = '',
     seed = Math.floor(Math.random() * 1000000),
-    steps = 20,
+    steps = 15, // Reduced from 20 to save memory
     cfgScale = 7.0,
     denoiseStrength = 0.75,
+    maxWidth = 512, // Limit image size to reduce memory usage
+    maxHeight = 512,
   } = options;
 
   // Get available checkpoints if none provided
@@ -327,13 +331,14 @@ export async function createComfyUIWorkflow(
   // Generate unique node IDs
   const nodeIds = {
     loadImage: '1',
-    loadCheckpoint: '2',
-    clipTextEncode: '3',
-    clipTextEncodeNegative: '4',
-    vaeEncode: '5',
-    kSampler: '6',
-    vaeDecode: '7',
-    saveImage: '8',
+    resizeImage: '2', // Added for memory optimization
+    loadCheckpoint: '3',
+    clipTextEncode: '4',
+    clipTextEncodeNegative: '5',
+    vaeEncode: '6',
+    kSampler: '7',
+    vaeDecode: '8',
+    saveImage: '9',
   };
 
   // Build the workflow
@@ -347,7 +352,21 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'Load Image' },
     },
 
-    // Node 2: Load Checkpoint (Model)
+    // Node 2: Resize Image (Memory optimization - limit size)
+    // Use ImageScale with "to" method to resize to specific dimensions
+    [nodeIds.resizeImage]: {
+      class_type: 'ImageScale',
+      inputs: {
+        upscale_method: 'lanczos',
+        crop: 'disabled',
+        width: maxWidth,
+        height: maxHeight,
+        images: [nodeIds.loadImage, 0],
+      },
+      _meta: { title: 'Resize Image (Memory Optimization)' },
+    },
+
+    // Node 3: Load Checkpoint (Model)
     [nodeIds.loadCheckpoint]: {
       class_type: 'CheckpointLoaderSimple',
       inputs: {
@@ -356,7 +375,7 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'Load Checkpoint' },
     },
 
-    // Node 3: CLIP Text Encode (Positive Prompt)
+    // Node 4: CLIP Text Encode (Positive Prompt)
     [nodeIds.clipTextEncode]: {
       class_type: 'CLIPTextEncode',
       inputs: {
@@ -366,7 +385,7 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'CLIP Text Encode (Positive)' },
     },
 
-    // Node 4: CLIP Text Encode (Negative Prompt)
+    // Node 5: CLIP Text Encode (Negative Prompt)
     [nodeIds.clipTextEncodeNegative]: {
       class_type: 'CLIPTextEncode',
       inputs: {
@@ -376,17 +395,17 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'CLIP Text Encode (Negative)' },
     },
 
-    // Node 5: VAE Encode (Image to Latent)
+    // Node 6: VAE Encode (Image to Latent)
     [nodeIds.vaeEncode]: {
       class_type: 'VAEEncode',
       inputs: {
-        pixels: [nodeIds.loadImage, 0], // Connect to image output
+        pixels: [nodeIds.resizeImage, 0], // Connect to resized image output
         vae: [nodeIds.loadCheckpoint, 2], // Connect to VAE output of checkpoint loader
       },
       _meta: { title: 'VAE Encode' },
     },
 
-    // Node 6: KSampler (Image Generation/Processing)
+    // Node 7: KSampler (Image Generation/Processing)
     [nodeIds.kSampler]: {
       class_type: 'KSampler',
       inputs: {
@@ -404,7 +423,7 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'KSampler' },
     },
 
-    // Node 7: VAE Decode (Latent to Image)
+    // Node 8: VAE Decode (Latent to Image)
     [nodeIds.vaeDecode]: {
       class_type: 'VAEDecode',
       inputs: {
@@ -414,7 +433,7 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'VAE Decode' },
     },
 
-    // Node 8: Save Image
+    // Node 9: Save Image
     [nodeIds.saveImage]: {
       class_type: 'SaveImage',
       inputs: {
