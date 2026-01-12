@@ -47,6 +47,10 @@ next-env.d.ts
 # data exports
 /data
 
+# logs
+/logs
+*.log
+
 # Cursor IDE
 .cursorrules
 .cursor/

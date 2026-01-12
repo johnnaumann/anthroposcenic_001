@@ -59,14 +59,23 @@ export async function* streamOllamaResponse(
   };
 
   try {
+    // First, check if Ollama is available
+    const isAvailable = await checkOllamaAvailability();
+    if (!isAvailable) {
+      throw new Error('Ollama service is not available. Please ensure Ollama is running.');
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(300000), // 5 minute timeout
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     if (!response.body) {
