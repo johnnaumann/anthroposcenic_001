@@ -270,11 +270,13 @@ app/
 
 ### README & Documentation Styling
 - Use ONLY monotone (grayscale) color palette in all documentation
+- **NO EMOJIS**: Do not use emojis in any documentation, README, or markdown files
+- Use text-based indicators and symbols instead of emojis
 - No colored badges, emojis with colors, or color-coded sections
 - Use grayscale patterns, symbols, or text-based indicators instead
 - Maintain professional monotone aesthetic in all markdown files
 - Code blocks should use grayscale syntax highlighting themes
-- Diagrams (Mermaid) should use grayscale color schemes
+- Diagrams (Mermaid) should use grayscale color schemes and no emoji labels
 
 ### README Content
 - Setup instructions

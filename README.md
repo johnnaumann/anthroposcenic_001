@@ -6,10 +6,10 @@ Upload an image → Generate AI description → Process with ComfyUI → All on 
 
 ```mermaid
 flowchart LR
-    A[📷 Upload Image] --> B[🤖 Ollama]
-    B --> C[📝 Stream Description]
-    C --> D[🎨 ComfyUI]
-    D --> E[✨ Processed Image]
+    A[Upload Image] --> B[Ollama]
+    B --> C[Stream Description]
+    C --> D[ComfyUI]
+    D --> E[Processed Image]
     
     style A fill:#e5e5e5
     style B fill:#d4d4d4
@@ -20,11 +20,11 @@ flowchart LR
 
 ## Why Local?
 
-- **🔒 Privacy**: Images never leave your machine
-- **💰 Free**: No API costs or rate limits  
-- **🔌 Offline**: Works without internet (after setup)
-- **⚡ Fast**: No network latency
-- **🎛️ Control**: Full customization of models and workflows
+- **Privacy**: Images never leave your machine
+- **Free**: No API costs or rate limits  
+- **Offline**: Works without internet (after setup)
+- **Fast**: No network latency
+- **Control**: Full customization of models and workflows
 
 ---
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ```mermaid
 graph TB
-    subgraph local["🖥️ Your Local Machine"]
+    subgraph local["Your Local Machine"]
         subgraph app["Next.js App :3000"]
             UI[Web Interface]
             API[API Routes]
@@ -127,7 +127,7 @@ This clones ComfyUI, creates a Python venv, and installs dependencies.
 
 ### 5. Download SD Model (Required)
 
-**⚠️ ComfyUI requires a Stable Diffusion checkpoint to process images.**
+**Note: ComfyUI requires a Stable Diffusion checkpoint to process images.**
 
 Download a checkpoint model to:
 
@@ -158,9 +158,9 @@ This starts all services concurrently and opens your browser:
 
 | Service | URL | Status |
 |---------|-----|--------|
-| Next.js | http://localhost:3000 | 🔵 App |
-| Ollama | http://localhost:11434 | 🟡 AI |
-| ComfyUI | http://localhost:8188 | 🟣 Image Gen |
+| Next.js | http://localhost:3000 | App |
+| Ollama | http://localhost:11434 | AI |
+| ComfyUI | http://localhost:8188 | Image Gen |
 
 ---
 
@@ -444,12 +444,12 @@ cd comfyui
 
 ```
 ┌─────────────────────────────────────────────┐
-│  ✅ Images stored locally (./uploads)       │
-│  ✅ AI runs on localhost:11434 (Ollama)     │
-│  ✅ Processing on localhost:8188 (ComfyUI)  │
-│  ✅ Zero external API calls                 │
-│  ✅ No API keys required                    │
-│  ✅ Works offline after setup               │
+│  Images stored locally (./uploads)          │
+│  AI runs on localhost:11434 (Ollama)        │
+│  Processing on localhost:8188 (ComfyUI)     │
+│  Zero external API calls                    │
+│  No API keys required                       │
+│  Works offline after setup                  │
 └─────────────────────────────────────────────┘
 ```
 
