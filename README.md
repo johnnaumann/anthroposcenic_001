@@ -217,6 +217,8 @@ OLLAMA_MODEL=qwen3-vl:8b
 
 # ComfyUI (Local)
 COMFYUI_HOST=http://localhost:8188
+# Memory optimization: --lowvram, --novram, --cpu, or --normalvram (default)
+# COMFYUI_MEMORY_MODE=--lowvram
 
 # Storage
 UPLOAD_DIR=./uploads
@@ -385,6 +387,7 @@ createComfyUIWorkflow(imageFilename, description, {
 | `npm run dev:ollama` | Start Ollama only |
 | `npm run dev:comfyui` | Start ComfyUI only |
 | `npm run comfyui:setup` | Install ComfyUI |
+| `npm run comfyui:test-memory` | Test ComfyUI memory modes to find optimal settings |
 | `npm run ollama:models` | Install recommended models + create custom model |
 | `npm run ollama:modelfile` | Create/update custom model from modelfile |
 | `npm run ollama:check` | Verify Ollama status |
@@ -442,9 +445,47 @@ cd comfyui
 
 ### Out of Memory
 
+**ComfyUI Memory Optimization:**
+
+ComfyUI supports several memory optimization modes. Test which works best for your system:
+
+```bash
+# Run the memory testing script
+./scripts/test-comfyui-memory.sh
+```
+
+**Available Memory Modes:**
+
+1. **`--normalvram`** - Normal VRAM usage (requires CUDA/GPU, not available on macOS)
+2. **`--lowvram`** - Reduced VRAM usage (requires CUDA/GPU, not available on macOS)
+3. **`--novram`** - Use CPU instead of GPU (requires CUDA initialization, not available on macOS)
+4. **`--cpu`** - Force CPU mode (✅ **Required on macOS** - auto-enabled by default)
+
+**Note for macOS users:** Since PyTorch is installed with CPU-only support, you must use `--cpu` mode. The startup scripts automatically detect macOS and use `--cpu` mode with `--use-split-cross-attention` for optimal memory usage.
+
+**To use a specific mode:**
+
+Set the `COMFYUI_MEMORY_MODE` environment variable:
+
+```bash
+# In your terminal
+export COMFYUI_MEMORY_MODE=--lowvram
+npm run dev:comfyui
+```
+
+Or add to `.env.local`:
+
+```env
+COMFYUI_MEMORY_MODE=--lowvram
+```
+
+**Other Memory Tips:**
+
 - Use smaller models: `llava:7b` instead of `qwen3-vl:8b`
 - Close other applications
-- Reduce ComfyUI steps/resolution
+- Reduce ComfyUI steps/resolution in workflow options
+- Use `--lowvram` if you have 4-8GB VRAM
+- Use `--novram` or `--cpu` if you have limited system RAM
 
 ---
 

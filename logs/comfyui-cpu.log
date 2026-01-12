@@ -1,0 +1,41 @@
+Checkpoint files will always be loaded safely.
+Total VRAM 32768 MB, total RAM 32768 MB
+pytorch version: 2.9.1
+Mac Version (15, 6)
+Set vram state to: DISABLED
+Device: cpu
+Found comfy_kitchen backend triton: {'available': False, 'disabled': True, 'unavailable_reason': "ImportError: No module named 'triton'", 'capabilities': []}
+Found comfy_kitchen backend cuda: {'available': False, 'disabled': True, 'unavailable_reason': 'Extension file not found: /Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/venv/lib/python3.11/site-packages/comfy_kitchen/backends/cuda/_C.abi3.so', 'capabilities': []}
+Found comfy_kitchen backend eager: {'available': True, 'disabled': False, 'unavailable_reason': None, 'capabilities': ['apply_rope', 'apply_rope1', 'dequantize_nvfp4', 'dequantize_per_tensor_fp8', 'quantize_nvfp4', 'quantize_per_tensor_fp8', 'scaled_mm_nvfp4']}
+Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention
+Python version: 3.11.14 (main, Oct  9 2025, 16:16:55) [Clang 17.0.0 (clang-1700.4.4.1)]
+ComfyUI version: 0.8.2
+ComfyUI frontend version: 1.36.13
+[Prompt Server] web root: /Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/venv/lib/python3.11/site-packages/comfyui_frontend_package/static
+
+Import times for custom nodes:
+   0.0 seconds: /Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/custom_nodes/websocket_image_save.py
+
+Context impl SQLiteImpl.
+Will assume non-transactional DDL.
+Assets scan(roots=['models']) completed in 0.008s (created=0, skipped_existing=12, total_seen=12)
+Starting server
+
+Traceback (most recent call last):
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/main.py", line 410, in <module>
+    event_loop.run_until_complete(x)
+  File "/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/main.py", line 392, in start_all
+    await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/main.py", line 281, in run
+    await asyncio.gather(
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/server.py", line 1188, in start_multi_address
+    await site.start()
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/venv/lib/python3.11/site-packages/aiohttp/web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/base_events.py", line 1536, in create_server
+    raise OSError(err.errno, msg) from None
+PermissionError: [Errno 1] error while attempting to bind on address ('127.0.0.1', 8188): operation not permitted

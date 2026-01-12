@@ -41,7 +41,32 @@ fi
 
 echo -e "${YELLOW}[comfyui] 🚀 Starting ComfyUI on port 8188...${NC}"
 
+# Memory optimization flags
+# Options: --lowvram (less VRAM), --novram (CPU only), --cpu (force CPU), --normalvram (default)
+# On macOS, PyTorch is CPU-only, so --cpu mode is required
+COMFYUI_MEMORY_MODE=${COMFYUI_MEMORY_MODE:-""}
+
+# Auto-detect macOS and use CPU mode if no mode specified
+if [ -z "$COMFYUI_MEMORY_MODE" ] && [[ "$OSTYPE" == "darwin"* ]]; then
+    COMFYUI_MEMORY_MODE="--cpu"
+    echo -e "${YELLOW}[comfyui] macOS detected: Using --cpu mode (required for CPU-only PyTorch)${NC}"
+elif [ -n "$COMFYUI_MEMORY_MODE" ]; then
+    echo -e "${YELLOW}[comfyui] Using memory mode: $COMFYUI_MEMORY_MODE${NC}"
+fi
+
 # Change to ComfyUI directory and run with the venv Python
 cd "$COMFYUI_DIR"
 export PYTHONDONTWRITEBYTECODE=1
-"$COMFYUI_DIR/venv/bin/python" -B main.py --port 8188
+
+# Build command with optional memory flags
+# Add --use-split-cross-attention for additional memory optimization on CPU
+CMD="$COMFYUI_DIR/venv/bin/python -B main.py --port 8188"
+if [ -n "$COMFYUI_MEMORY_MODE" ]; then
+    CMD="$CMD $COMFYUI_MEMORY_MODE"
+    # Add split cross attention for better memory usage on CPU
+    if [[ "$COMFYUI_MEMORY_MODE" == "--cpu" ]]; then
+        CMD="$CMD --use-split-cross-attention"
+    fi
+fi
+
+eval "$CMD"

@@ -14,6 +14,8 @@
     "comfyui:setup": "bash scripts/setup-comfyui.sh",
     "comfyui:run": "bash scripts/run-comfyui.sh",
     "comfyui:models": "bash scripts/install-comfyui-models.sh",
+    "comfyui:test-memory": "bash scripts/test-comfyui-memory.sh",
+    "comfyui:check-memory": "bash scripts/check-comfyui-memory.sh",
     "ollama:setup": "bash scripts/setup-ollama.sh",
     "ollama:check": "bash scripts/check-ollama.sh",
     "ollama:models": "bash scripts/install-ollama-models.sh",

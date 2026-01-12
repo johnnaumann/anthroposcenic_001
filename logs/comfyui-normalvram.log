@@ -1,0 +1,17 @@
+Checkpoint files will always be loaded safely.
+Traceback (most recent call last):
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/main.py", line 178, in <module>
+    import execution
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/execution.py", line 15, in <module>
+    import comfy.model_management
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/comfy/model_management.py", line 238, in <module>
+    total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
+                                  ^^^^^^^^^^^^^^^^^^
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/comfy/model_management.py", line 188, in get_torch_device
+    return torch.device(torch.cuda.current_device())
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/venv/lib/python3.11/site-packages/torch/cuda/__init__.py", line 1069, in current_device
+    _lazy_init()
+  File "/Users/johnnaumann/Documents/GitHub/anthroposcenic_001/comfyui/venv/lib/python3.11/site-packages/torch/cuda/__init__.py", line 403, in _lazy_init
+    raise AssertionError("Torch not compiled with CUDA enabled")
+AssertionError: Torch not compiled with CUDA enabled
