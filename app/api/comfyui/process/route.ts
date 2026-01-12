@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { readFile, copyFile, mkdir } from 'fs/promises';
+import { readFile, copyFile, mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability, prepareImageForComfyUI } from '@/lib/comfyui';
@@ -7,6 +7,7 @@ import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming
 import { ComfyUIProcessRequest } from '@/types';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const EXPORTS_DIR = process.env.EXPORTS_DIR || './data/exports';
 
 async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
   const uploadPath = join(process.cwd(), UPLOAD_DIR);
@@ -73,12 +74,14 @@ export async function POST(request: NextRequest) {
       });
 
       let comfyImageFilename: string;
+      let imageBase64: string;
       try {
         // Try to copy image to ComfyUI input directory
         const comfyInputDir = join(process.cwd(), 'comfyui', 'input');
         await mkdir(comfyInputDir, { recursive: true });
         
         const imageBuffer = await readFile(imageFile.path);
+        imageBase64 = imageBuffer.toString('base64');
         const filename = `${imageId}${imageFile.path.split('.').pop() || '.png'}`;
         const comfyImagePath = join(comfyInputDir, filename);
         
@@ -87,7 +90,51 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.warn('Failed to copy image to ComfyUI input, using filename:', error);
         // Fallback: use just the filename (assumes image is accessible)
+        const imageBuffer = await readFile(imageFile.path);
+        imageBase64 = imageBuffer.toString('base64');
         comfyImageFilename = imageFile.path.split('/').pop() || `${imageId}.png`;
+      }
+
+      // Save description and base64 image to exports folder for git tracking
+      try {
+        const exportsPath = join(process.cwd(), EXPORTS_DIR);
+        await mkdir(exportsPath, { recursive: true });
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const exportDir = join(exportsPath, `${imageId}-${timestamp}`);
+        await mkdir(exportDir, { recursive: true });
+        
+        // Save description
+        await writeFile(
+          join(exportDir, 'description.txt'),
+          description,
+          'utf-8'
+        );
+        
+        // Save base64 image
+        await writeFile(
+          join(exportDir, 'image.base64.txt'),
+          imageBase64,
+          'utf-8'
+        );
+        
+        // Save metadata JSON
+        await writeFile(
+          join(exportDir, 'metadata.json'),
+          JSON.stringify({
+            imageId,
+            timestamp: new Date().toISOString(),
+            description,
+            imageMimeType: imageFile.mimeType,
+            comfyImageFilename,
+          }, null, 2),
+          'utf-8'
+        );
+        
+        console.log(`Saved export to: ${exportDir}`);
+      } catch (error) {
+        console.warn('Failed to save export files:', error);
+        // Don't fail the request if export saving fails
       }
 
       // Create or use custom workflow
