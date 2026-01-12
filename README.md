@@ -11,11 +11,11 @@ flowchart LR
     C --> D[ComfyUI]
     D --> E[Processed Image]
     
-    style A fill:#e5e5e5
-    style B fill:#d4d4d4
-    style C fill:#a3a3a3
-    style D fill:#737373
-    style E fill:#525252
+    style A fill:#404040,stroke:#262626,color:#ffffff
+    style B fill:#525252,stroke:#404040,color:#ffffff
+    style C fill:#737373,stroke:#525252,color:#ffffff
+    style D fill:#a3a3a3,stroke:#737373,color:#000000
+    style E fill:#d4d4d4,stroke:#a3a3a3,color:#000000
 ```
 
 ## Why Local?
@@ -55,10 +55,16 @@ graph TB
     API --> comfy
     API --> FS
     
-    style local fill:#e5e5e5,stroke:#d4d4d4
-    style app fill:#d4d4d4,stroke:#a3a3a3
-    style ollama fill:#a3a3a3,stroke:#737373
-    style comfy fill:#737373,stroke:#525252
+    style local fill:#404040,stroke:#262626,color:#ffffff
+    style app fill:#525252,stroke:#404040,color:#ffffff
+    style ollama fill:#737373,stroke:#525252,color:#ffffff
+    style comfy fill:#a3a3a3,stroke:#737373,color:#000000
+    style UI fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style API fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style VM fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style SD fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style WF fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style FS fill:#262626,stroke:#0a0a0a,color:#ffffff
 ```
 
 **All communication via `localhost` — zero external calls.**
@@ -182,6 +188,11 @@ sequenceDiagram
     C->>C: Process (img2img)
     C-->>N: Stream progress
     N-->>U: Display result
+    
+    Note over U: User Interface
+    Note over N: Next.js Server
+    Note over O: Ollama AI
+    Note over C: ComfyUI Processing
 ```
 
 ### Pipeline Steps
@@ -329,6 +340,15 @@ flowchart LR
     E --> F
     F --> G[VAEDecode]
     G --> H[SaveImage]
+    
+    style A fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style B fill:#404040,stroke:#262626,color:#ffffff
+    style C fill:#525252,stroke:#404040,color:#ffffff
+    style D fill:#737373,stroke:#525252,color:#ffffff
+    style E fill:#737373,stroke:#525252,color:#ffffff
+    style F fill:#a3a3a3,stroke:#737373,color:#000000
+    style G fill:#d4d4d4,stroke:#a3a3a3,color:#000000
+    style H fill:#e5e5e5,stroke:#d4d4d4,color:#000000
 ```
 
 Customize in `lib/comfyui.ts`:
