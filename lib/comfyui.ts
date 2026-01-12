@@ -167,21 +167,40 @@ export async function getComfyUIQueueStatus(): Promise<ComfyUIStatus> {
 }
 
 /**
- * Get ComfyUI history
+ * Get ComfyUI history for a specific prompt ID
  */
 export async function getComfyUIHistory(
   promptId: string
 ): Promise<{ [key: string]: unknown } | null> {
   try {
+    // Try the specific prompt ID endpoint first
     const response = await fetch(`${COMFYUI_HOST}/history/${promptId}`, {
       method: 'GET',
     });
 
-    if (!response.ok) {
+    if (response.ok) {
+      const data = await response.json();
+      // If we get data and it has the prompt ID, return it
+      if (data && (data[promptId] || Object.keys(data).length > 0)) {
+        return data;
+      }
+    }
+
+    // Fallback: get all history and find our prompt ID
+    const allHistoryResponse = await fetch(`${COMFYUI_HOST}/history`, {
+      method: 'GET',
+    });
+
+    if (!allHistoryResponse.ok) {
       return null;
     }
 
-    return await response.json();
+    const allHistory = await allHistoryResponse.json();
+    if (allHistory && allHistory[promptId]) {
+      return { [promptId]: allHistory[promptId] };
+    }
+
+    return null;
   } catch (error) {
     console.error('Failed to get ComfyUI history:', error);
     return null;
@@ -376,10 +395,27 @@ export async function* pollComfyUIJob(
 
   while (attempts < maxAttempts) {
     try {
+      // Check if job is still in queue
+      const queueStatus = await getComfyUIQueueStatus();
+      const queueRunning = queueStatus.queue_running || [];
+      const isStillRunning = queueRunning.some((item: unknown[]) => 
+        Array.isArray(item) && item.length > 1 && item[1] === promptId
+      );
+
+      // Check history for completed job
       const history = await getComfyUIHistory(promptId);
       
       if (history && history[promptId]) {
         const jobData = history[promptId] as {
+          outputs?: {
+            [nodeId: string]: {
+              images?: Array<{
+                filename: string;
+                subfolder?: string;
+                type?: string;
+              }>;
+            };
+          };
           status?: {
             completed?: Array<{
               outputs?: {
@@ -395,12 +431,28 @@ export async function* pollComfyUIJob(
           };
         };
         
+        // Check for outputs in the job data (ComfyUI history structure)
+        if (jobData.outputs) {
+          // Find SaveImage node output (usually node "8" in our workflow)
+          for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
+            if (nodeOutputs.images && nodeOutputs.images.length > 0) {
+              const image = nodeOutputs.images[0];
+              const filename = image.filename;
+              const subfolder = image.subfolder || '';
+              const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
+              const imageUrl = getComfyUIOutputImage(imagePath);
+              
+              yield { status: 'complete', progress: 100, imageUrl };
+              return;
+            }
+          }
+        }
+        
+        // Also check status.completed structure (alternative format)
         if (jobData.status?.completed && jobData.status.completed.length > 0) {
-          // Job completed, extract output images
           const completed = jobData.status.completed[0];
           
           if (completed.outputs) {
-            // Find SaveImage node output
             for (const nodeOutputs of Object.values(completed.outputs)) {
               if (nodeOutputs.images && nodeOutputs.images.length > 0) {
                 const image = nodeOutputs.images[0];
@@ -417,12 +469,31 @@ export async function* pollComfyUIJob(
         }
       }
 
-      // Check queue status for progress estimation
-      const queueStatus = await getComfyUIQueueStatus();
-      const queueRemaining = queueStatus.exec_info?.queue_remaining || 0;
+      // If job is not in queue and not in history, it might have failed
+      if (!isStillRunning && !history) {
+        // Job might have failed or been removed
+        // Wait a bit more and check history again
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        attempts++;
+        continue;
+      }
+
+      // Calculate progress based on queue position
+      const queuePending = queueStatus.queue_pending || [];
+      const queueRemaining = queuePending.length + (isStillRunning ? 1 : 0);
       
-      // Estimate progress (rough approximation)
-      const progress = Math.min(95, Math.max(0, 100 - (queueRemaining * 5)));
+      // Estimate progress: 0-90% based on queue, 90-100% when processing
+      let progress: number;
+      if (isStillRunning) {
+        // Job is running, estimate 90-99% (will be 100% when complete)
+        progress = Math.min(99, 90 + (attempts * 0.1));
+      } else if (queueRemaining > 0) {
+        // Job is pending
+        progress = Math.min(90, Math.max(0, 100 - (queueRemaining * 10)));
+      } else {
+        // No queue info, use attempt-based progress
+        progress = Math.min(95, attempts * 2);
+      }
 
       yield { status: 'processing', progress };
 

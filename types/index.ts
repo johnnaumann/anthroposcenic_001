@@ -91,13 +91,15 @@ export interface ComfyUIJob {
 }
 
 export interface ComfyUIStatus {
-  exec_info: {
-    queue_remaining: number;
+  exec_info?: {
+    queue_remaining?: number;
   };
-  status: {
-    exec_info: {
-      queue_remaining: number;
+  queue_running?: Array<[number, string, Record<string, unknown>, unknown, string[]]>;
+  queue_pending?: Array<[number, string, Record<string, unknown>, unknown, string[]]>;
+  status?: {
+    exec_info?: {
+      queue_remaining?: number;
     };
-    queue_pending: Array<[number, string, Record<string, unknown>, string]>;
+    queue_pending?: Array<[number, string, Record<string, unknown>, string]>;
   };
 }
