@@ -42,6 +42,61 @@ export async function checkComfyUIAvailability(): Promise<boolean> {
 }
 
 /**
+ * Get list of available checkpoints from ComfyUI
+ * Checks both the API and filesystem
+ */
+export async function getAvailableCheckpoints(): Promise<string[]> {
+  try {
+    // First, try to get from API
+    const response = await fetch(`${COMFYUI_HOST}/object_info`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const checkpointInfo = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name;
+    
+    // The checkpoint list format is typically [[list], {metadata}]
+    if (Array.isArray(checkpointInfo) && checkpointInfo.length > 0) {
+      // Check if first element is an array of checkpoint names
+      if (Array.isArray(checkpointInfo[0]) && checkpointInfo[0].length > 0) {
+        return checkpointInfo[0] as string[];
+      }
+      // Or if it's a direct list of strings
+      if (typeof checkpointInfo[0] === 'string') {
+        return checkpointInfo as string[];
+      }
+    }
+    
+    // If API doesn't return checkpoints, try filesystem (server-side only)
+    // This will only work in Node.js environment
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      try {
+        const { readdir } = await import('fs/promises');
+        const { join } = await import('path');
+        const checkpointDir = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
+        const files = await readdir(checkpointDir);
+        const checkpoints = files.filter(f => 
+          f.endsWith('.safetensors') || f.endsWith('.ckpt')
+        );
+        return checkpoints;
+      } catch (fsError) {
+        // Filesystem check failed, return empty
+        console.warn('Could not check filesystem for checkpoints:', fsError);
+      }
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to get available checkpoints:', error);
+    return [];
+  }
+}
+
+/**
  * Upload an image to ComfyUI
  * Returns the filename that ComfyUI uses to reference the image
  */
@@ -152,7 +207,7 @@ export function getComfyUIOutputImage(filename: string): string {
  * @param description - Text description/prompt for processing
  * @param options - Optional workflow configuration
  */
-export function createComfyUIWorkflow(
+export async function createComfyUIWorkflow(
   imageFilename: string,
   description: string,
   options: {
@@ -162,14 +217,25 @@ export function createComfyUIWorkflow(
     cfgScale?: number; // CFG scale
     denoiseStrength?: number; // Denoising strength for img2img (0-1)
   } = {}
-): ComfyUIWorkflow {
+): Promise<ComfyUIWorkflow> {
   const {
-    checkpoint = '',
+    checkpoint: providedCheckpoint = '',
     seed = Math.floor(Math.random() * 1000000),
     steps = 20,
     cfgScale = 7.0,
     denoiseStrength = 0.75,
   } = options;
+
+  // Get available checkpoints if none provided
+  let checkpoint = providedCheckpoint;
+  if (!checkpoint) {
+    const availableCheckpoints = await getAvailableCheckpoints();
+    if (availableCheckpoints.length === 0) {
+      throw new Error('No checkpoint models available. Please install a Stable Diffusion checkpoint to comfyui/models/checkpoints/');
+    }
+    checkpoint = availableCheckpoints[0];
+    console.log(`Using checkpoint: ${checkpoint}`);
+  }
 
   // Generate unique node IDs
   const nodeIds = {

@@ -125,17 +125,28 @@ npm run comfyui:setup
 
 This clones ComfyUI, creates a Python venv, and installs dependencies.
 
-### 5. Download SD Model
+### 5. Download SD Model (Required)
 
-ComfyUI needs a Stable Diffusion checkpoint. Download one to:
+**⚠️ ComfyUI requires a Stable Diffusion checkpoint to process images.**
+
+Download a checkpoint model to:
 
 ```
 comfyui/models/checkpoints/
 ```
 
-Recommended sources:
-- [Hugging Face](https://huggingface.co/runwayml/stable-diffusion-v1-5)
-- [Civitai](https://civitai.com)
+**Recommended models:**
+- **Stable Diffusion 1.5** (~4GB): [Hugging Face](https://huggingface.co/runwayml/stable-diffusion-v1-5)
+- **SDXL** (~7GB): [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)
+- **Community models**: [Civitai](https://civitai.com)
+
+**File formats:** `.safetensors` or `.ckpt`
+
+**Quick download (SD 1.5):**
+```bash
+cd comfyui/models/checkpoints
+curl -L -o sd-v1-5.safetensors https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
+```
 
 ### 6. Start Everything
 
@@ -381,6 +392,26 @@ pkill -f "python.*main.py"
 ollama list              # See installed models
 ollama pull qwen3-vl:8b  # Re-download
 ```
+
+### ComfyUI Processing Timeout / No Checkpoints
+
+**Error:** `No checkpoint models available` or `ckpt_name: '' not in []`
+
+**Solution:** Install a Stable Diffusion checkpoint:
+
+```bash
+# Navigate to checkpoints directory
+cd comfyui/models/checkpoints
+
+# Download SD 1.5 (recommended, ~4GB)
+curl -L -o sd-v1-5.safetensors \
+  https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
+
+# Verify it's there
+ls -lh *.safetensors *.ckpt
+```
+
+**After installing:** Restart ComfyUI or the app will auto-detect on next request.
 
 ### ComfyUI Python Errors
 

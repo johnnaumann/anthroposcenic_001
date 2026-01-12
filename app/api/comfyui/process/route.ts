@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       // The workflow is built programmatically with all nodes and connections
       const workflow = customWorkflow
         ? JSON.parse(customWorkflow)
-        : createComfyUIWorkflow(comfyImageFilename, description, {
+        : await createComfyUIWorkflow(comfyImageFilename, description, {
             steps: 20,
             cfgScale: 7.0,
             denoiseStrength: 0.75,
