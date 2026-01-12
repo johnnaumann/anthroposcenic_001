@@ -221,16 +221,23 @@ COMFYUI_HOST=http://localhost:8188
 # COMFYUI_MEMORY_MODE=--lowvram
 
 # ComfyUI Creativity Settings (for generating interesting variations)
-# Preset: low, medium, high (default), extreme
-# Higher creativity = more variation from input image, less replication
-COMFYUI_CREATIVITY=high
+# Preset: low, medium, high, extreme, quality (default), quality-high
+# - quality/quality-high: Preserve detail from original, higher steps, lower denoise
+# - high/extreme: More variation from input image, less replication
+COMFYUI_CREATIVITY=quality
 
 # Advanced: Override individual parameters (optional)
-# COMFYUI_STEPS=25              # Sampling steps (15-30, higher = better quality)
-# COMFYUI_CFG_SCALE=6.0          # CFG scale (5-8, lower = more creative, higher = more prompt adherence)
-# COMFYUI_DENOISE=0.85            # Denoise strength (0.65-0.95, higher = more variation)
+# COMFYUI_STEPS=35              # Sampling steps (15-50, higher = better quality, slower)
+# COMFYUI_CFG_SCALE=8.0          # CFG scale (5-10, lower = more creative, higher = more prompt adherence)
+# COMFYUI_DENOISE=0.35            # Denoise strength (0.25-0.95, lower = preserve detail, higher = more variation)
 # COMFYUI_SAMPLER=dpmpp_2m_karras # Sampler: euler, dpmpp_2m, dpmpp_2m_karras, euler_a
 # COMFYUI_SCHEDULER=karras        # Scheduler: normal, karras, exponential, simple
+
+# ComfyUI Checkpoint Model (optional)
+# Specify which diffusion model to use for processing
+# Default: First available checkpoint in comfyui/models/checkpoints/
+# Examples: DreamShaper_8.safetensors, Deliberate_v2.safetensors, AbyssOrangeMix3.safetensors
+# COMFYUI_CHECKPOINT=DreamShaper_8.safetensors
 
 # Storage
 UPLOAD_DIR=./uploads
@@ -376,9 +383,10 @@ Customize in `lib/comfyui.ts`:
 
 ```typescript
 createComfyUIWorkflow(imageFilename, description, {
-  // Creativity preset (low, medium, high, extreme)
-  // 'high' = more variation, less replication (default)
-  creativity: 'high',
+  // Creativity preset
+  // 'quality' or 'quality-high' = preserve detail, high quality (default)
+  // 'high' or 'extreme' = more variation, less replication
+  creativity: 'quality',
   
   // Or override individual parameters:
   checkpoint: 'model.safetensors',
@@ -393,20 +401,29 @@ createComfyUIWorkflow(imageFilename, description, {
 
 **Creativity Presets:**
 
+**Quality-Focused (Preserve Detail):**
+- **`quality`**: Preserve detail, high quality (denoise: 0.35, CFG: 8.0, steps: 35) - **Default**
+- **`quality-high`**: Maximum detail preservation (denoise: 0.30, CFG: 8.5, steps: 45)
+
+**Variation-Focused (More Creative Changes):**
 - **`low`**: Minimal variation, memory-optimized (denoise: 0.65, CFG: 8.0, steps: 15)
 - **`medium`**: Moderate variation (denoise: 0.75, CFG: 7.0, steps: 18)
-- **`high`**: High variation, good balance (denoise: 0.85, CFG: 6.0, steps: 22) - **Default**
-- **`extreme`**: Maximum variation, best quality (denoise: 0.95, CFG: 5.0, steps: 28)
+- **`high`**: High variation, good balance (denoise: 0.85, CFG: 6.0, steps: 22)
+- **`extreme`**: Maximum variation (denoise: 0.95, CFG: 5.0, steps: 28)
 
-**Key Parameters for Creativity:**
+**Key Parameters for Quality vs Creativity:**
 
+**For Detail Preservation (Quality Mode):**
+- **Denoise Strength** (0.25-0.35): Lower = preserves more original detail
+- **CFG Scale** (7.0-9.0): Higher = better prompt adherence while preserving detail
+- **Steps** (30-50): More steps = better refinement and detail
+- **Sampler**: `dpmpp_2m` or `dpmpp_2m_karras` for high quality
+
+**For Creative Variation:**
 - **Denoise Strength** (0.65-0.95): Higher = more variation from input image
-- **CFG Scale** (5-8): Lower = more creative freedom, higher = more prompt adherence
+- **CFG Scale** (5-7): Lower = more creative freedom
+- **Steps** (15-28): Fewer steps = faster, more variation
 - **Sampler**: Automatically validated against available ComfyUI samplers with fallback
-  - High/extreme presets try `dpmpp_2m_karras` first, fallback to `dpmpp_2m` or `euler_ancestral`
-  - Common samplers: `euler`, `euler_ancestral`, `dpmpp_2m`, `dpm_2_ancestral`
-- **Scheduler**: `normal` (most compatible), `karras` may not be available in all ComfyUI versions
-- **Negative Prompt**: Enhanced to discourage exact replication
 
 **Note:** Sampler names are automatically validated. If a requested sampler isn't available, the system will use a compatible fallback and log a warning.
 
@@ -437,6 +454,7 @@ createComfyUIWorkflow(imageFilename, description, {
 | `npm run comfyui:test-memory` | Test ComfyUI memory modes to find optimal settings |
 | `npm run comfyui:samplers` | List all available ComfyUI samplers |
 | `npm run comfyui:install-extra-samplers` | Install ComfyUI Extra Samplers plugin (adds more samplers) |
+| `npm run comfyui:install-creative-models` | Install creative/artistic diffusion models (DreamShaper, Deliberate, etc.) |
 | `npm run ollama:models` | Install recommended models + create custom model |
 | `npm run ollama:modelfile` | Create/update custom model from modelfile |
 | `npm run ollama:check` | Verify Ollama status |
@@ -519,6 +537,44 @@ This installs the [ComfyUI Extra Samplers](https://github.com/Clybius/ComfyUI-Ex
 1. Restart ComfyUI: `npm run dev:comfyui`
 2. Check available samplers again: `npm run comfyui:samplers`
 3. The new samplers will be automatically detected and available for use
+
+### Installing Creative/Artistic Diffusion Models
+
+For more creative, surreal, and "weird" outputs, you can install specialized diffusion models:
+
+**Install Creative Models:**
+```bash
+npm run comfyui:install-creative-models
+```
+
+This installs several creative models:
+- **DreamShaper 8**: Dreamy, painterly, hyper-realistic with artistic flair
+- **Deliberate v2**: Highly creative, excellent at following complex prompts
+- **AbyssOrangeMix3**: Anime/artistic style, very creative
+- **Anything V5**: Popular anime/artistic model
+- **ChilloutMix**: Realistic but with artistic flair
+- **Realistic Vision V5.1**: Photorealistic (can be pushed to creative)
+
+**Using a Specific Model:**
+
+1. **Via Environment Variable** (`.env.local`):
+   ```env
+   COMFYUI_CHECKPOINT=DreamShaper_8.safetensors
+   ```
+
+2. **Models are auto-detected**: After installation, restart ComfyUI and the app will automatically detect all available models.
+
+**Finding More Models:**
+
+- **Civitai**: https://civitai.com/models (huge collection of creative models)
+- **Hugging Face**: https://huggingface.co/models (search for "stable-diffusion")
+- **Tensor.Art**: https://tensor.art/models
+
+**Manual Installation:**
+1. Download a `.safetensors` or `.ckpt` file
+2. Place it in `comfyui/models/checkpoints/`
+3. Restart ComfyUI
+4. The model will be automatically available
 
 **Alternative: HybridSamplers Plugin**
 For experimental samplers and schedulers:

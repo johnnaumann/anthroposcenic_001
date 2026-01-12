@@ -142,16 +142,19 @@ export async function POST(request: NextRequest) {
       // The workflow is built programmatically with all nodes and connections
       // Images are now pre-compressed at upload, so no need for resize node
       // Use creativity settings from environment or defaults
-      const creativity = (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme') || 'high';
+      // Default to 'quality' for better detail preservation
+      const creativity = (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high') || 'quality';
       const customSteps = process.env.COMFYUI_STEPS ? parseInt(process.env.COMFYUI_STEPS, 10) : undefined;
       const customCfgScale = process.env.COMFYUI_CFG_SCALE ? parseFloat(process.env.COMFYUI_CFG_SCALE) : undefined;
       const customDenoise = process.env.COMFYUI_DENOISE ? parseFloat(process.env.COMFYUI_DENOISE) : undefined;
       const customSampler = process.env.COMFYUI_SAMPLER || undefined;
       const customScheduler = process.env.COMFYUI_SCHEDULER || undefined;
+      const customCheckpoint = process.env.COMFYUI_CHECKPOINT || undefined;
       
       const workflow = customWorkflow
         ? JSON.parse(customWorkflow)
         : await createComfyUIWorkflow(comfyImageFilename, description, {
+            checkpoint: customCheckpoint,
             creativity,
             steps: customSteps,
             cfgScale: customCfgScale,

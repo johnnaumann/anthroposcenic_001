@@ -475,11 +475,12 @@ export async function createComfyUIWorkflow(
     maxHeight?: number; // Maximum image height (optional, images are now compressed at upload)
     useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
     negativePrompt?: string; // Custom negative prompt (default: creative variation-focused)
-    creativity?: 'low' | 'medium' | 'high' | 'extreme'; // Creativity preset
+    creativity?: 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high'; // Creativity preset (quality modes preserve detail)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   // Get creativity preset or use individual parameters
-  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme') || 'high';
+  // Default to 'quality' for better detail preservation, or use environment variable
+  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high') || 'quality';
   
   // Define creativity presets
   // Balance between creativity (variation) and memory usage
@@ -517,6 +518,23 @@ export async function createComfyUIWorkflow(
       scheduler: 'normal',
       negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate, replication, same as original, unchanged, unmodified, faithful reproduction, precise copy',
     },
+    // Quality-focused presets that preserve detail from original image
+    quality: {
+      denoiseStrength: 0.35, // Lower denoise preserves more original detail
+      cfgScale: 8.0, // Higher CFG for better prompt adherence
+      steps: 35, // More steps for better refinement
+      sampler: 'dpmpp_2m', // High-quality sampler
+      scheduler: 'normal',
+      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined',
+    },
+    'quality-high': {
+      denoiseStrength: 0.30, // Even lower denoise for maximum detail preservation
+      cfgScale: 8.5, // Higher CFG for strong prompt adherence
+      steps: 45, // Many steps for maximum refinement
+      sampler: 'dpmpp_2m', // High-quality sampler
+      scheduler: 'normal',
+      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined, pixelated, artifacts',
+    },
   };
 
   const preset = creativityPresets[creativity];
@@ -547,10 +565,10 @@ export async function createComfyUIWorkflow(
   }
 
   // Validate and get a valid sampler (with fallback)
-  // For high/extreme creativity, try dpmpp_2m_karras first, then fallback to dpmpp_2m
+  // For quality/high/extreme presets, try dpmpp_2m_karras first for best quality
   let sampler = requestedSampler;
-  if ((creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
-    // Try dpmpp_2m_karras first for high creativity presets
+  if ((creativity === 'quality' || creativity === 'quality-high' || creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
+    // Try dpmpp_2m_karras first for quality and high creativity presets
     sampler = await getValidSampler('dpmpp_2m_karras');
   } else {
     // Validate the requested sampler (or preset default)

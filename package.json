@@ -18,6 +18,7 @@
     "comfyui:check-memory": "bash scripts/check-comfyui-memory.sh",
     "comfyui:samplers": "bash scripts/check-comfyui-samplers.sh",
     "comfyui:install-extra-samplers": "bash scripts/install-comfyui-extra-samplers.sh",
+    "comfyui:install-creative-models": "bash scripts/install-creative-models.sh",
     "ollama:setup": "bash scripts/setup-ollama.sh",
     "ollama:check": "bash scripts/check-ollama.sh",
     "ollama:models": "bash scripts/install-ollama-models.sh",
