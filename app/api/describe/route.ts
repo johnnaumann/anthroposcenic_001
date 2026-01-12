@@ -68,32 +68,63 @@ export async function POST(request: NextRequest) {
 
       // Stream response from Ollama
       let fullDescription = '';
-      for await (const token of streamOllamaResponse({
-        model,
-        prompt,
-        images: [imageBase64],
-        stream: true,
-      })) {
-        fullDescription += token;
-        sendStreamMessage(controller, {
-          type: 'token',
-          data: token,
-        });
+      let streamOpen = true;
+      
+      try {
+        for await (const token of streamOllamaResponse({
+          model,
+          prompt,
+          images: [imageBase64],
+          stream: true,
+        })) {
+          fullDescription += token;
+          // Only send if stream is still open
+          if (streamOpen) {
+            streamOpen = sendStreamMessage(controller, {
+              type: 'token',
+              data: token,
+            });
+            // If stream closed, stop trying to send
+            if (!streamOpen) {
+              console.warn('[Describe] Stream closed during token streaming');
+              break;
+            }
+          }
+        }
+
+        // Send completion message only if stream is still open
+        if (streamOpen) {
+          sendStreamMessage(controller, {
+            type: 'done',
+            data: fullDescription,
+          });
+          closeStream(controller);
+        }
+      } catch (streamError) {
+        // If streaming fails but stream is still open, send error
+        if (streamOpen) {
+          console.error('Describe streaming error:', streamError);
+          sendStreamError(
+            controller,
+            streamError instanceof Error ? streamError.message : 'Failed to generate description'
+          );
+        } else {
+          // Stream already closed, just log
+          console.error('Describe error after stream closed:', streamError);
+        }
       }
-
-      // Send completion message
-      sendStreamMessage(controller, {
-        type: 'done',
-        data: fullDescription,
-      });
-
-      closeStream(controller);
     } catch (error) {
       console.error('Describe error:', error);
-      sendStreamError(
-        controller,
-        error instanceof Error ? error.message : 'Failed to generate description'
-      );
+      // Only send error if stream is still open
+      try {
+        sendStreamError(
+          controller,
+          error instanceof Error ? error.message : 'Failed to generate description'
+        );
+      } catch (sendError) {
+        // Stream might already be closed, just log
+        console.error('Failed to send error message (stream may be closed):', sendError);
+      }
     }
   })();
 

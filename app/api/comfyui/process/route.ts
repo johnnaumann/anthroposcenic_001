@@ -180,34 +180,124 @@ export async function POST(request: NextRequest) {
       });
 
       // Poll for job status
+      let lastUpdate: { status: string; progress?: number; imageUrl?: string; error?: string } | null = null;
+      let streamOpen = true;
+      
       for await (const update of pollComfyUIJob(promptId)) {
-        if (update.status === 'complete' && update.imageUrl) {
-          sendStreamMessage(controller, {
-            type: 'image',
-            data: update.imageUrl,
-          });
-          sendStreamMessage(controller, {
-            type: 'done',
-            data: 'Processing complete',
-          });
-          closeStream(controller);
-          return;
+        if (!streamOpen) break; // Stop if stream is closed
+        
+        lastUpdate = update;
+        console.log(`[Process Route] Received update:`, { 
+          status: update.status, 
+          progress: update.progress, 
+          hasImageUrl: !!update.imageUrl,
+          imageUrl: update.imageUrl 
+        });
+        
+        if (update.status === 'complete') {
+          if (update.imageUrl) {
+            console.log(`[Process Route] ✅ Job complete! Sending image URL to frontend: ${update.imageUrl}`);
+            if (streamOpen) {
+              streamOpen = sendStreamMessage(controller, {
+                type: 'image',
+                data: update.imageUrl,
+              });
+              if (streamOpen) {
+                sendStreamMessage(controller, {
+                  type: 'done',
+                  data: 'Processing complete',
+                });
+                closeStream(controller);
+              }
+            }
+            return;
+          } else {
+            // Job completed but no image URL - try to find it
+            console.warn(`[Process Route] Job completed but no imageUrl in update, attempting to find image...`);
+            const { findLatestOutputImage } = await import('@/lib/comfyui');
+            const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', Date.now() - 300000); // Check last 5 minutes
+            if (foundImage && streamOpen) {
+              console.log(`[Process Route] Found image via fallback: ${foundImage.imageUrl}`);
+              streamOpen = sendStreamMessage(controller, {
+                type: 'image',
+                data: foundImage.imageUrl,
+              });
+              if (streamOpen) {
+                sendStreamMessage(controller, {
+                  type: 'done',
+                  data: 'Processing complete',
+                });
+                closeStream(controller);
+              }
+              return;
+            } else if (!foundImage && streamOpen) {
+              console.error(`[Process Route] Job completed but could not find image file`);
+              sendStreamError(controller, 'Processing completed but image not found. Check ComfyUI output directory.');
+              return;
+            }
+          }
         } else if (update.status === 'error') {
-          sendStreamError(controller, update.error || 'ComfyUI processing failed');
+          console.error(`[Process Route] ComfyUI error: ${update.error}`);
+          if (streamOpen) {
+            sendStreamError(controller, update.error || 'ComfyUI processing failed');
+          }
           return;
         } else if (update.status === 'timeout') {
-          sendStreamError(controller, 'ComfyUI processing timed out');
+          console.error(`[Process Route] ComfyUI timeout`);
+          // On timeout, try one final filesystem check
+          const { findLatestOutputImage } = await import('@/lib/comfyui');
+          const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', Date.now() - 300000);
+          if (foundImage && streamOpen) {
+            console.log(`[Process Route] Found image after timeout: ${foundImage.imageUrl}`);
+            streamOpen = sendStreamMessage(controller, {
+              type: 'image',
+              data: foundImage.imageUrl,
+            });
+            if (streamOpen) {
+              sendStreamMessage(controller, {
+                type: 'done',
+                data: 'Processing complete',
+              });
+              closeStream(controller);
+            }
+            return;
+          }
+          if (streamOpen) {
+            sendStreamError(controller, 'ComfyUI processing timed out');
+          }
           return;
-        } else if (update.progress !== undefined) {
-          sendStreamMessage(controller, {
+        } else if (update.progress !== undefined && streamOpen) {
+          streamOpen = sendStreamMessage(controller, {
             type: 'progress',
             data: update.progress,
           });
-        } else {
-          sendStreamMessage(controller, {
+        } else if (streamOpen) {
+          streamOpen = sendStreamMessage(controller, {
             type: 'status',
             data: update.status,
           });
+        }
+      }
+      
+      // If we exit the loop without a complete status, check one more time
+      if (lastUpdate && lastUpdate.status !== 'complete' && streamOpen) {
+        console.warn(`[Process Route] Polling loop ended without completion. Last status: ${lastUpdate.status}`);
+        const { findLatestOutputImage } = await import('@/lib/comfyui');
+        const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', Date.now() - 300000);
+        if (foundImage) {
+          console.log(`[Process Route] Found image after polling ended: ${foundImage.imageUrl}`);
+          streamOpen = sendStreamMessage(controller, {
+            type: 'image',
+            data: foundImage.imageUrl,
+          });
+          if (streamOpen) {
+            sendStreamMessage(controller, {
+              type: 'done',
+              data: 'Processing complete',
+            });
+            closeStream(controller);
+          }
+          return;
         }
       }
     } catch (error) {

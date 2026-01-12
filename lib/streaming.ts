@@ -36,13 +36,30 @@ export function createStreamResponse(): {
 
 /**
  * Send a message through the stream
+ * Returns false if the controller is closed
  */
 export function sendStreamMessage(
   controller: ReadableStreamDefaultController<Uint8Array>,
   message: StreamMessage
-): void {
-  const formatted = formatSSEMessage(message);
-  controller.enqueue(new TextEncoder().encode(formatted));
+): boolean {
+  try {
+    // Check if controller is still open
+    if (controller.desiredSize === null) {
+      // Controller is closed
+      console.warn('[Streaming] Attempted to send message to closed stream:', message.type);
+      return false;
+    }
+    const formatted = formatSSEMessage(message);
+    controller.enqueue(new TextEncoder().encode(formatted));
+    return true;
+  } catch (error) {
+    // Controller might be closed or in an invalid state
+    if (error instanceof TypeError && error.message.includes('closed')) {
+      console.warn('[Streaming] Attempted to send message to closed stream:', message.type);
+      return false;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -59,6 +76,8 @@ export function sendStreamError(
   controller: ReadableStreamDefaultController<Uint8Array>,
   error: string
 ): void {
-  sendStreamMessage(controller, { type: 'error', error });
-  closeStream(controller);
+  // Only send error if stream is still open
+  if (sendStreamMessage(controller, { type: 'error', error })) {
+    closeStream(controller);
+  }
 }

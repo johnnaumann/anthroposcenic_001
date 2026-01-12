@@ -87,11 +87,14 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
             try {
               const data = JSON.parse(line.slice(6));
               
+              console.log('[ComfyUIProgress] Received message:', data.type, data);
+              
               if (data.type === 'status' && data.data) {
                 setStatus(data.data);
               } else if (data.type === 'progress' && typeof data.data === 'number') {
                 setProgress(data.data);
               } else if (data.type === 'image' && data.data) {
+                console.log('[ComfyUIProgress] Setting result image:', data.data);
                 setResultImage(data.data);
                 setProgress(100);
                 setStatus('Processing complete!');
@@ -99,6 +102,10 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
                 setIsProcessing(false);
                 return;
               } else if (data.type === 'done') {
+                // If we get 'done' but no image yet, check if we have an image URL from a previous message
+                if (!resultImage) {
+                  console.warn('[ComfyUIProgress] Received done but no image was set');
+                }
                 setProgress(100);
                 setStatus('Processing complete!');
                 setIsProcessing(false);
@@ -108,6 +115,7 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
               }
             } catch (e) {
               // Skip invalid JSON
+              console.warn('[ComfyUIProgress] Failed to parse message:', line, e);
             }
           }
         }
