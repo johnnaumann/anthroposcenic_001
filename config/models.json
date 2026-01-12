@@ -1,13 +1,22 @@
 {
   "ollama": {
-    "default": "llava:7b",
+    "default": "anthroposcenic-describe:latest",
     "vision": {
-      "llava:7b": {
-        "name": "llava:7b",
-        "displayName": "LLaVA 7B (Recommended)",
-        "description": "Fast and reliable vision model",
+      "anthroposcenic-describe:latest": {
+        "name": "anthroposcenic-describe:latest",
+        "displayName": "Anthroposcenic Describe (Recommended)",
+        "description": "Custom model with optimized system prompt for image description",
         "size": "~4GB",
         "recommended": true,
+        "features": ["vision", "custom-prompt", "optimized"],
+        "baseModel": "llava:7b"
+      },
+      "llava:7b": {
+        "name": "llava:7b",
+        "displayName": "LLaVA 7B",
+        "description": "Fast and reliable vision model",
+        "size": "~4GB",
+        "recommended": false,
         "features": ["vision", "fast", "reliable"]
       },
       "qwen3-vl:8b": {

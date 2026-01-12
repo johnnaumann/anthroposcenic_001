@@ -97,5 +97,15 @@ done
 echo ""
 echo "✅ Model installation complete!"
 echo ""
+
+# Create custom model from modelfile if base model is installed
+echo "🔨 Creating custom model from modelfile..."
+if [ -f "$PROJECT_ROOT/scripts/create-ollama-modelfile.sh" ]; then
+    bash "$PROJECT_ROOT/scripts/create-ollama-modelfile.sh"
+else
+    echo "⚠️  Modelfile creation script not found, skipping custom model"
+fi
+
+echo ""
 echo "Available models:"
 ollama list

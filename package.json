@@ -16,7 +16,8 @@
     "comfyui:models": "bash scripts/install-comfyui-models.sh",
     "ollama:setup": "bash scripts/setup-ollama.sh",
     "ollama:check": "bash scripts/check-ollama.sh",
-    "ollama:models": "bash scripts/install-ollama-models.sh"
+    "ollama:models": "bash scripts/install-ollama-models.sh",
+    "ollama:modelfile": "bash scripts/create-ollama-modelfile.sh"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.0",

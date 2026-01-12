@@ -98,13 +98,24 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 **Windows:** Download from [ollama.com/download](https://ollama.com/download)
 
-### 3. Pull Vision Model
+### 3. Install Vision Models & Create Custom Model
 
 ```bash
-ollama pull qwen3-vl:8b
+npm run ollama:models
 ```
 
-*Alternative models: `llava:7b` (faster), `llava:13b` (higher quality)*
+This installs the base vision model (`llava:7b`) and creates a custom model (`anthroposcenic-describe:latest`) with an optimized system prompt for image description.
+
+**Or manually:**
+```bash
+# Install base model
+ollama pull llava:7b
+
+# Create custom model with system prompt
+npm run ollama:modelfile
+```
+
+The custom model includes a system prompt optimized for generating detailed image descriptions suitable for AI image generation systems.
 
 ### 4. Setup ComfyUI
 
@@ -197,18 +208,66 @@ Models are defined in `config/models.json`:
 ```json
 {
   "ollama": {
-    "default": "qwen3-vl:8b",
+    "default": "anthroposcenic-describe:latest",
     "vision": {
-      "qwen3-vl:8b": { "recommended": true },
+      "anthroposcenic-describe:latest": {
+        "recommended": true,
+        "baseModel": "llava:7b"
+      },
       "llava:7b": { "recommended": false }
     }
   }
 }
 ```
 
-Install recommended models:
+**Custom Model with System Prompt:**
+
+The application uses a custom Ollama model (`anthroposcenic-describe:latest`) created from `config/ollama-modelfile`. This modelfile includes:
+
+- **System Prompt**: Optimized for detailed image descriptions for AI image generation
+- **Base Model**: `llava:7b` (fast and reliable)
+- **Parameters**: Temperature 0.7, top_p 0.9, top_k 40
+
+**Create/Update the custom model:**
+```bash
+npm run ollama:modelfile
+```
+
+**Install all models:**
 ```bash
 npm run ollama:models
+```
+
+**Edit the system prompt:**
+Edit `config/ollama-modelfile` and recreate the model:
+```bash
+npm run ollama:modelfile
+```
+
+**Modelfile Structure:**
+
+The `config/ollama-modelfile` defines the custom model:
+
+```dockerfile
+FROM llava:7b
+
+SYSTEM """You are an expert image analysis assistant...
+[System prompt for detailed image descriptions]
+"""
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+```
+
+You can customize:
+- **FROM**: Base model (e.g., `llava:7b`, `llava:13b`, `qwen3-vl:8b`)
+- **SYSTEM**: System prompt that guides the model's behavior
+- **PARAMETER**: Generation parameters (temperature, top_p, top_k)
+
+After editing, recreate the model:
+```bash
+npm run ollama:modelfile
 ```
 
 ---
@@ -234,7 +293,8 @@ npm run ollama:models
 │   └── models.ts            # Model utilities
 ├── comfyui/                 # ComfyUI installation
 ├── config/
-│   └── models.json          # Model definitions
+│   ├── models.json          # Model definitions
+│   └── ollama-modelfile     # Custom Ollama model with system prompt
 └── scripts/
     ├── start-ollama.sh
     ├── start-comfyui.sh
@@ -294,7 +354,8 @@ createComfyUIWorkflow(imageFilename, description, {
 | `npm run dev:ollama` | Start Ollama only |
 | `npm run dev:comfyui` | Start ComfyUI only |
 | `npm run comfyui:setup` | Install ComfyUI |
-| `npm run ollama:models` | Install recommended models |
+| `npm run ollama:models` | Install recommended models + create custom model |
+| `npm run ollama:modelfile` | Create/update custom model from modelfile |
 | `npm run ollama:check` | Verify Ollama status |
 
 ---
