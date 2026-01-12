@@ -50,6 +50,76 @@ export async function checkComfyUIAvailability(): Promise<boolean> {
 }
 
 /**
+ * Get list of available samplers from ComfyUI
+ */
+export async function getAvailableSamplers(): Promise<string[]> {
+  try {
+    const response = await fetch(`${COMFYUI_HOST}/object_info`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const ksamplerInfo = data?.KSampler?.input?.required?.sampler_name;
+    
+    // The sampler list format is typically [[list], {metadata}]
+    if (Array.isArray(ksamplerInfo) && ksamplerInfo.length > 0) {
+      // Check if first element is an array of sampler names
+      if (Array.isArray(ksamplerInfo[0]) && ksamplerInfo[0].length > 0) {
+        return ksamplerInfo[0] as string[];
+      }
+      // Or if it's a direct list of strings
+      if (typeof ksamplerInfo[0] === 'string') {
+        return ksamplerInfo as string[];
+      }
+    }
+    
+    // Fallback: return common sampler names
+    return ['euler', 'euler_ancestral', 'dpm_2', 'dpm_2_ancestral', 'dpmpp_2m', 'dpmpp_2s_ancestral', 'lms', 'plms', 'ddim'];
+  } catch (error) {
+    console.error('Failed to get available samplers:', error);
+    // Return common fallback samplers
+    return ['euler', 'euler_ancestral', 'dpm_2', 'dpm_2_ancestral', 'dpmpp_2m', 'lms', 'plms', 'ddim'];
+  }
+}
+
+/**
+ * Validate and get a valid sampler name, with fallback
+ */
+export async function getValidSampler(requestedSampler: string): Promise<string> {
+  const availableSamplers = await getAvailableSamplers();
+  
+  // If requested sampler is available, use it
+  if (availableSamplers.includes(requestedSampler)) {
+    return requestedSampler;
+  }
+  
+  // Try common variations
+  const variations: Record<string, string[]> = {
+    'dpmpp_2m_karras': ['dpmpp_2m', 'dpmpp_2s_ancestral', 'dpm_2_ancestral'],
+    'dpmpp_2m': ['dpm_2_ancestral', 'euler_ancestral', 'euler'],
+    'euler_a': ['euler_ancestral', 'euler'],
+  };
+  
+  if (variations[requestedSampler]) {
+    for (const fallback of variations[requestedSampler]) {
+      if (availableSamplers.includes(fallback)) {
+        console.warn(`Sampler '${requestedSampler}' not available, using '${fallback}' instead`);
+        return fallback;
+      }
+    }
+  }
+  
+  // Final fallback: use first available sampler or 'euler'
+  const fallback = availableSamplers.includes('euler') ? 'euler' : availableSamplers[0] || 'euler';
+  console.warn(`Sampler '${requestedSampler}' not available, using '${fallback}' instead`);
+  return fallback;
+}
+
+/**
  * Get list of available checkpoints from ComfyUI
  * Checks both the API and filesystem
  */
@@ -301,22 +371,72 @@ export async function createComfyUIWorkflow(
     checkpoint?: string; // Model checkpoint name (default: first available)
     seed?: number; // Random seed
     steps?: number; // Number of sampling steps
-    cfgScale?: number; // CFG scale
-    denoiseStrength?: number; // Denoising strength for img2img (0-1)
+    cfgScale?: number; // CFG scale (lower = more creative, higher = more prompt adherence)
+    denoiseStrength?: number; // Denoising strength for img2img (0-1, higher = more variation)
+    sampler?: string; // Sampler name (e.g., 'euler', 'dpmpp_2m', 'dpmpp_2m_karras', 'euler_a')
+    scheduler?: string; // Scheduler (e.g., 'normal', 'karras', 'exponential', 'simple')
     maxWidth?: number; // Maximum image width (optional, images are now compressed at upload)
     maxHeight?: number; // Maximum image height (optional, images are now compressed at upload)
     useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
+    negativePrompt?: string; // Custom negative prompt (default: creative variation-focused)
+    creativity?: 'low' | 'medium' | 'high' | 'extreme'; // Creativity preset
   } = {}
 ): Promise<ComfyUIWorkflow> {
+  // Get creativity preset or use individual parameters
+  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme') || 'high';
+  
+  // Define creativity presets
+  // Balance between creativity (variation) and memory usage
+  // Note: Sampler names will be validated against available ComfyUI samplers
+  const creativityPresets = {
+    low: {
+      denoiseStrength: 0.65,
+      cfgScale: 8.0,
+      steps: 15, // Memory-optimized
+      sampler: 'euler', // Common sampler, usually available
+      scheduler: 'normal',
+      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality',
+    },
+    medium: {
+      denoiseStrength: 0.75,
+      cfgScale: 7.0,
+      steps: 18, // Slightly more steps for better quality
+      sampler: 'euler_ancestral', // More variation than euler
+      scheduler: 'normal',
+      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate',
+    },
+    high: {
+      denoiseStrength: 0.85,
+      cfgScale: 6.0,
+      steps: 22, // Good balance of quality and memory
+      sampler: 'dpmpp_2m', // More creative sampler (will try dpmpp_2m_karras first, fallback to this)
+      scheduler: 'normal', // Use normal scheduler (karras scheduler may not be available)
+      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate, replication, same as original, unchanged, unmodified',
+    },
+    extreme: {
+      denoiseStrength: 0.95,
+      cfgScale: 5.0,
+      steps: 28, // Higher quality, more memory usage
+      sampler: 'dpmpp_2m', // Will try variations, fallback to this
+      scheduler: 'normal',
+      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate, replication, same as original, unchanged, unmodified, faithful reproduction, precise copy',
+    },
+  };
+
+  const preset = creativityPresets[creativity];
+  
   const {
     checkpoint: providedCheckpoint = '',
     seed = Math.floor(Math.random() * 1000000),
-    steps = 15, // Reduced from 20 to save memory
-    cfgScale = 7.0,
-    denoiseStrength = 0.75,
+    steps = preset.steps,
+    cfgScale = preset.cfgScale,
+    denoiseStrength = preset.denoiseStrength,
+    sampler: requestedSampler = preset.sampler,
+    scheduler = preset.scheduler,
     maxWidth = 1024, // Default max (images are pre-compressed at upload to 1024px max)
     maxHeight = 1024,
     useImageResize = false, // Images are now compressed at upload, so resize node is optional
+    negativePrompt = preset.negativePrompt,
   } = options;
 
   // Get available checkpoints if none provided
@@ -328,6 +448,17 @@ export async function createComfyUIWorkflow(
     }
     checkpoint = availableCheckpoints[0];
     console.log(`Using checkpoint: ${checkpoint}`);
+  }
+
+  // Validate and get a valid sampler (with fallback)
+  // For high/extreme creativity, try dpmpp_2m_karras first, then fallback to dpmpp_2m
+  let sampler = requestedSampler;
+  if ((creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
+    // Try dpmpp_2m_karras first for high creativity presets
+    sampler = await getValidSampler('dpmpp_2m_karras');
+  } else {
+    // Validate the requested sampler (or preset default)
+    sampler = await getValidSampler(requestedSampler);
   }
 
   // Generate unique node IDs
@@ -397,7 +528,7 @@ export async function createComfyUIWorkflow(
     [nodeIds.clipTextEncodeNegative]: {
       class_type: 'CLIPTextEncode',
       inputs: {
-        text: 'blurry, bad quality, distorted, watermark',
+        text: negativePrompt,
         clip: [nodeIds.loadCheckpoint, 1],
       },
       _meta: { title: 'CLIP Text Encode (Negative)' },
@@ -420,8 +551,8 @@ export async function createComfyUIWorkflow(
         seed: seed,
         steps: steps,
         cfg: cfgScale,
-        sampler_name: 'euler',
-        scheduler: 'normal',
+        sampler_name: sampler,
+        scheduler: scheduler,
         denoise: denoiseStrength,
         positive: [nodeIds.clipTextEncode, 0],
         negative: [nodeIds.clipTextEncodeNegative, 0],

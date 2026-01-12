@@ -220,6 +220,18 @@ COMFYUI_HOST=http://localhost:8188
 # Memory optimization: --lowvram, --novram, --cpu, or --normalvram (default)
 # COMFYUI_MEMORY_MODE=--lowvram
 
+# ComfyUI Creativity Settings (for generating interesting variations)
+# Preset: low, medium, high (default), extreme
+# Higher creativity = more variation from input image, less replication
+COMFYUI_CREATIVITY=high
+
+# Advanced: Override individual parameters (optional)
+# COMFYUI_STEPS=25              # Sampling steps (15-30, higher = better quality)
+# COMFYUI_CFG_SCALE=6.0          # CFG scale (5-8, lower = more creative, higher = more prompt adherence)
+# COMFYUI_DENOISE=0.85            # Denoise strength (0.65-0.95, higher = more variation)
+# COMFYUI_SAMPLER=dpmpp_2m_karras # Sampler: euler, dpmpp_2m, dpmpp_2m_karras, euler_a
+# COMFYUI_SCHEDULER=karras        # Scheduler: normal, karras, exponential, simple
+
 # Storage
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
@@ -364,12 +376,39 @@ Customize in `lib/comfyui.ts`:
 
 ```typescript
 createComfyUIWorkflow(imageFilename, description, {
+  // Creativity preset (low, medium, high, extreme)
+  // 'high' = more variation, less replication (default)
+  creativity: 'high',
+  
+  // Or override individual parameters:
   checkpoint: 'model.safetensors',
-  steps: 30,
-  cfgScale: 8.0,
-  denoiseStrength: 0.6,
+  steps: 25,              // Sampling steps (15-30, higher = better quality)
+  cfgScale: 6.0,         // CFG scale (5-8, lower = more creative, higher = more prompt adherence)
+  denoiseStrength: 0.85, // Denoise (0.65-0.95, higher = more variation from input)
+  sampler: 'dpmpp_2m_karras', // Sampler: euler, dpmpp_2m, dpmpp_2m_karras, euler_a
+  scheduler: 'karras',    // Scheduler: normal, karras, exponential, simple
+  negativePrompt: 'exact copy, identical, duplicate...', // Custom negative prompt
 })
 ```
+
+**Creativity Presets:**
+
+- **`low`**: Minimal variation, memory-optimized (denoise: 0.65, CFG: 8.0, steps: 15)
+- **`medium`**: Moderate variation (denoise: 0.75, CFG: 7.0, steps: 18)
+- **`high`**: High variation, good balance (denoise: 0.85, CFG: 6.0, steps: 22) - **Default**
+- **`extreme`**: Maximum variation, best quality (denoise: 0.95, CFG: 5.0, steps: 28)
+
+**Key Parameters for Creativity:**
+
+- **Denoise Strength** (0.65-0.95): Higher = more variation from input image
+- **CFG Scale** (5-8): Lower = more creative freedom, higher = more prompt adherence
+- **Sampler**: Automatically validated against available ComfyUI samplers with fallback
+  - High/extreme presets try `dpmpp_2m_karras` first, fallback to `dpmpp_2m` or `euler_ancestral`
+  - Common samplers: `euler`, `euler_ancestral`, `dpmpp_2m`, `dpm_2_ancestral`
+- **Scheduler**: `normal` (most compatible), `karras` may not be available in all ComfyUI versions
+- **Negative Prompt**: Enhanced to discourage exact replication
+
+**Note:** Sampler names are automatically validated. If a requested sampler isn't available, the system will use a compatible fallback and log a warning.
 
 ---
 
