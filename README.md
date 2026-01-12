@@ -70,7 +70,7 @@ This application processes images **completely locally**:
    ```env
    # Ollama Configuration (Local - runs on your machine)
    OLLAMA_HOST=http://localhost:11434
-   OLLAMA_MODEL=qwen2.5-vl:latest
+   OLLAMA_MODEL=qwen3-vl:8b
 
    # ComfyUI Configuration (Local - runs on your machine)
    COMFYUI_HOST=http://localhost:8188
@@ -259,8 +259,9 @@ All services run locally on your machine:
 Models are configured in `config/models.json`. The default model is `qwen2.5-vl:latest`.
 
 **Available models:**
-- `qwen2.5-vl:latest` - Recommended (thinking process, ~7GB)
-- `llava:latest` - Faster alternative (~4GB)
+- `qwen3-vl:8b` - Recommended (thinking process, ~6GB) ✅ You have this installed
+- `llava:7b` - Faster alternative (~4GB) ✅ You have this installed
+- `qwen2.5-vl:latest` - Alternative (if available, ~7GB)
 - `llava:13b` - Higher quality (~7GB)
 - `bakllava:latest` - Alternative option (~4GB)
 

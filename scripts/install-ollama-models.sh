@@ -47,7 +47,8 @@ echo "📋 Recommended models from config:"
 echo ""
 
 # Extract recommended models (simplified - in production, use jq or python)
-RECOMMENDED_MODELS=("qwen2.5-vl:latest")
+# Default to qwen3-vl:8b which is available, fallback to others
+RECOMMENDED_MODELS=("qwen3-vl:8b")
 
 echo "The following models are recommended:"
 for model in "${RECOMMENDED_MODELS[@]}"; do

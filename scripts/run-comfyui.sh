@@ -23,16 +23,17 @@ if [ ! -d "$COMFYUI_DIR/venv" ]; then
     exit 1
 fi
 
-# Activate virtual environment and run ComfyUI
-echo "🚀 Starting ComfyUI..."
-cd "$COMFYUI_DIR"
-source venv/bin/activate
-
 # Set default port if not specified
 PORT=${COMFYUI_PORT:-8188}
 
+echo "🚀 Starting ComfyUI..."
 echo "🌐 ComfyUI will be available at: http://localhost:$PORT"
 echo "Press Ctrl+C to stop"
 echo ""
 
-python main.py --port "$PORT"
+cd "$COMFYUI_DIR"
+
+# Use absolute path to Python in venv to ensure correct environment
+# Set PYTHONDONTWRITEBYTECODE to avoid cache issues
+export PYTHONDONTWRITEBYTECODE=1
+"$COMFYUI_DIR/venv/bin/python" -B main.py --port "$PORT"

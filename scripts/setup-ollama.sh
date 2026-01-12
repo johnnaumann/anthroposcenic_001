@@ -77,16 +77,16 @@ else
         fi
     done
     
-    # Check if qwen2.5-vl is installed
-    if echo "$MODELS" | grep -q "qwen2.5-vl"; then
+    # Check if qwen3-vl:8b or qwen2.5-vl is installed
+    if echo "$MODELS" | grep -q "qwen.*vl"; then
         echo ""
-        echo "✅ Recommended model (qwen2.5-vl) is installed"
+        echo "✅ Recommended Qwen vision model is installed"
     else
         echo ""
         echo "💡 Tip: Install recommended models with:"
         echo "   npm run ollama:models"
         echo "   or"
-        echo "   ollama pull qwen2.5-vl:latest"
+        echo "   ollama pull qwen3-vl:8b"
     fi
 fi
 

@@ -67,16 +67,19 @@ If you get a JSON response, Ollama is running!
 
 For image description, you need a vision-capable model. Recommended models:
 
-### Qwen2.5-VL (Recommended)
+### Qwen3-VL 8B (Recommended)
 ```bash
-ollama pull qwen2.5-vl:latest
+ollama pull qwen3-vl:8b
 ```
 
-**Why Qwen2.5-VL?**
+**Why Qwen3-VL 8B?**
 - Excellent vision understanding
 - Supports "thinking" process (shows reasoning)
 - Good balance of quality and speed
-- ~7GB download
+- ~6GB download
+- Currently available in Ollama library
+
+**Note:** If `qwen2.5-vl:latest` is available in your Ollama version, you can use that instead.
 
 ### Alternative Vision Models
 
