@@ -43,3 +43,6 @@ next-env.d.ts
 # ComfyUI
 /comfyui
 /comfyui_*
+
+# data exports
+/data

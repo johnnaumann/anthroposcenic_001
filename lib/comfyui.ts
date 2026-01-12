@@ -33,10 +33,18 @@ export async function checkComfyUIAvailability(): Promise<boolean> {
   try {
     const response = await fetch(`${COMFYUI_HOST}/system_stats`, {
       method: 'GET',
+      // Add timeout to prevent hanging (Node 18+)
+      signal: AbortSignal.timeout(5000),
     });
     return response.ok;
   } catch (error) {
-    console.error('ComfyUI availability check failed:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error(`Network error: Cannot connect to ComfyUI at ${COMFYUI_HOST}. Is ComfyUI running?`);
+    } else if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`Timeout: ComfyUI at ${COMFYUI_HOST} did not respond within 5 seconds`);
+    } else {
+      console.error('ComfyUI availability check failed:', error);
+    }
     return false;
   }
 }
@@ -137,33 +145,62 @@ export async function uploadImageToComfyUI(
 export async function queueComfyUIWorkflow(
   workflow: ComfyUIWorkflow
 ): Promise<ComfyUIQueueResponse> {
-  const response = await fetch(`${COMFYUI_HOST}/prompt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: workflow }),
-  });
+  try {
+    const response = await fetch(`${COMFYUI_HOST}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow }),
+      signal: AbortSignal.timeout(10000), // 10 second timeout for workflow submission
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`ComfyUI API error: ${response.status} ${response.statusText} - ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`ComfyUI API error (${response.status}):`, errorText);
+      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('ECONNREFUSED'))) {
+      const networkError = new Error(`Network error connecting to ComfyUI at ${COMFYUI_HOST}. Is ComfyUI running?`);
+      console.error('ComfyUI network error:', error);
+      throw networkError;
+    }
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      const timeoutError = new Error(`Timeout: ComfyUI at ${COMFYUI_HOST} did not respond within 10 seconds`);
+      console.error('ComfyUI timeout error:', error);
+      throw timeoutError;
+    }
+    throw error;
   }
-
-  return await response.json();
 }
 
 /**
  * Get ComfyUI queue status
  */
 export async function getComfyUIQueueStatus(): Promise<ComfyUIStatus> {
-  const response = await fetch(`${COMFYUI_HOST}/queue`, {
-    method: 'GET',
-  });
+  try {
+    const response = await fetch(`${COMFYUI_HOST}/queue`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
 
-  if (!response.ok) {
-    throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('ECONNREFUSED'))) {
+      console.error(`Network error connecting to ComfyUI at ${COMFYUI_HOST}:`, error);
+      throw new Error(`Network error connecting to ComfyUI at ${COMFYUI_HOST}. Is ComfyUI running?`);
+    }
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`Timeout connecting to ComfyUI at ${COMFYUI_HOST}:`, error);
+      throw new Error(`Timeout: ComfyUI at ${COMFYUI_HOST} did not respond within 5 seconds`);
+    }
+    throw error;
   }
-
-  return await response.json();
 }
 
 /**
@@ -176,6 +213,7 @@ export async function getComfyUIHistory(
     // Try the specific prompt ID endpoint first
     const response = await fetch(`${COMFYUI_HOST}/history/${promptId}`, {
       method: 'GET',
+      signal: AbortSignal.timeout(5000),
     });
 
     if (response.ok) {
@@ -189,6 +227,7 @@ export async function getComfyUIHistory(
     // Fallback: get all history and find our prompt ID
     const allHistoryResponse = await fetch(`${COMFYUI_HOST}/history`, {
       method: 'GET',
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!allHistoryResponse.ok) {
@@ -202,7 +241,36 @@ export async function getComfyUIHistory(
 
     return null;
   } catch (error) {
-    console.error('Failed to get ComfyUI history:', error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error(`Network error connecting to ComfyUI at ${COMFYUI_HOST}:`, error);
+    } else {
+      console.error('Failed to get ComfyUI history:', error);
+    }
+    return null;
+  }
+}
+
+/**
+ * Get all ComfyUI history
+ */
+export async function getAllComfyUIHistory(): Promise<{ [key: string]: unknown } | null> {
+  try {
+    const response = await fetch(`${COMFYUI_HOST}/history`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error(`Network error connecting to ComfyUI at ${COMFYUI_HOST}:`, error);
+    } else {
+      console.error('Failed to get all ComfyUI history:', error);
+    }
     return null;
   }
 }
@@ -388,22 +456,51 @@ export async function prepareImageForComfyUI(
  */
 export async function* pollComfyUIJob(
   promptId: string,
-  maxAttempts: number = 120, // Increased for longer processing times
+  maxAttempts: number = 300, // Increased to 10 minutes (300 * 2s = 600s)
   intervalMs: number = 2000
 ): AsyncGenerator<{ status: string; progress?: number; imageUrl?: string }, void, unknown> {
   let attempts = 0;
+  let wasInQueue = false;
 
   while (attempts < maxAttempts) {
     try {
       // Check if job is still in queue
       const queueStatus = await getComfyUIQueueStatus();
       const queueRunning = queueStatus.queue_running || [];
+      const queuePending = queueStatus.queue_pending || [];
       const isStillRunning = queueRunning.some((item: unknown[]) => 
         Array.isArray(item) && item.length > 1 && item[1] === promptId
       );
+      const isPending = queuePending.some((item: unknown[]) => 
+        Array.isArray(item) && item.length > 1 && item[1] === promptId
+      );
 
-      // Check history for completed job
-      const history = await getComfyUIHistory(promptId);
+      // Track if job was ever in queue
+      if (isStillRunning || isPending) {
+        wasInQueue = true;
+      }
+
+      // Check history for completed job (check all history more frequently for better detection)
+      let history = await getComfyUIHistory(promptId);
+      
+      // If not found in specific history, check all history:
+      // - Every attempt if job was in queue but is no longer running (most aggressive)
+      // - Every 3 attempts if job was in queue and still processing
+      // - Every 5 attempts otherwise
+      if (!history) {
+        const shouldCheckAllHistory = 
+          (wasInQueue && !isStillRunning && !isPending) || // Job left queue - check every time
+          (wasInQueue && attempts % 3 === 0) || // Job in queue - check every 3 attempts
+          (!wasInQueue && attempts % 5 === 0); // Job never in queue - check every 5 attempts
+        
+        if (shouldCheckAllHistory) {
+          const allHistory = await getAllComfyUIHistory();
+          if (allHistory && allHistory[promptId]) {
+            history = { [promptId]: allHistory[promptId] };
+            console.log(`✅ Found prompt ${promptId} in all history (attempt ${attempts})`);
+          }
+        }
+      }
       
       if (history && history[promptId]) {
         const jobData = history[promptId] as {
@@ -433,19 +530,25 @@ export async function* pollComfyUIJob(
         
         // Check for outputs in the job data (ComfyUI history structure)
         if (jobData.outputs) {
+          console.log(`Checking outputs for prompt ${promptId}:`, Object.keys(jobData.outputs));
           // Find SaveImage node output (usually node "8" in our workflow)
           for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
             if (nodeOutputs.images && nodeOutputs.images.length > 0) {
               const image = nodeOutputs.images[0];
               const filename = image.filename;
               const subfolder = image.subfolder || '';
+              // Handle empty subfolder correctly
               const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
               const imageUrl = getComfyUIOutputImage(imagePath);
               
+              console.log(`✅ ComfyUI job ${promptId} completed! Image: ${filename}, URL: ${imageUrl}`);
               yield { status: 'complete', progress: 100, imageUrl };
               return;
             }
           }
+          console.warn(`Prompt ${promptId} found in history but no images in outputs`);
+        } else {
+          console.warn(`Prompt ${promptId} found in history but no outputs field`);
         }
         
         // Also check status.completed structure (alternative format)
@@ -461,6 +564,7 @@ export async function* pollComfyUIJob(
                 const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
                 const imageUrl = getComfyUIOutputImage(imagePath);
                 
+                console.log(`ComfyUI job ${promptId} completed! Image: ${filename}`);
                 yield { status: 'complete', progress: 100, imageUrl };
                 return;
               }
@@ -469,30 +573,42 @@ export async function* pollComfyUIJob(
         }
       }
 
-      // If job is not in queue and not in history, it might have failed
-      if (!isStillRunning && !history) {
-        // Job might have failed or been removed
-        // Wait a bit more and check history again
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
-        attempts++;
-        continue;
+      // If job was in queue but is no longer running and not in history, it might have just completed
+      // Check all history immediately when job leaves queue
+      if (wasInQueue && !isStillRunning && !isPending && !history) {
+        // Job left queue - check all history immediately
+        const allHistory = await getAllComfyUIHistory();
+        if (allHistory && allHistory[promptId]) {
+          history = { [promptId]: allHistory[promptId] };
+          console.log(`Found prompt ${promptId} in all history after leaving queue`);
+        } else {
+          // Job left queue but not in history yet - wait a bit more
+          if (attempts < maxAttempts - 10) {
+            console.log(`Job ${promptId} left queue but not in history yet, waiting... (attempt ${attempts})`);
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+            attempts++;
+            continue;
+          }
+        }
       }
 
       // Calculate progress based on queue position
-      const queuePending = queueStatus.queue_pending || [];
       const queueRemaining = queuePending.length + (isStillRunning ? 1 : 0);
       
-      // Estimate progress: 0-90% based on queue, 90-100% when processing
+      // Estimate progress: 0-90% based on queue, 90-99% when processing
       let progress: number;
       if (isStillRunning) {
         // Job is running, estimate 90-99% (will be 100% when complete)
-        progress = Math.min(99, 90 + (attempts * 0.1));
-      } else if (queueRemaining > 0) {
-        // Job is pending
-        progress = Math.min(90, Math.max(0, 100 - (queueRemaining * 10)));
+        progress = Math.min(99, 90 + Math.min(9, attempts * 0.05));
+      } else if (isPending) {
+        // Job is pending in queue
+        progress = Math.min(90, Math.max(10, 100 - (queueRemaining * 15)));
+      } else if (wasInQueue) {
+        // Job was in queue but no longer there - might be completing
+        progress = 98;
       } else {
         // No queue info, use attempt-based progress
-        progress = Math.min(95, attempts * 2);
+        progress = Math.min(95, attempts * 0.5);
       }
 
       yield { status: 'processing', progress };
@@ -506,5 +622,6 @@ export async function* pollComfyUIJob(
     }
   }
 
+  console.warn(`ComfyUI job ${promptId} timed out after ${maxAttempts} attempts`);
   yield { status: 'timeout' };
 }
