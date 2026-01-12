@@ -138,19 +138,21 @@ export async function* streamComfyUIProgress(
         const data = message.data as { prompt_id?: string } | undefined;
         if (!data || data.prompt_id === promptId) {
           executionCompleted = true;
-          console.log(`[WebSocket] Execution success for prompt ${promptId}`);
-          sendUpdate({ status: 'processing', progress: 100 }); // Use 100% to match terminal
-          // Close after short delay to allow history to populate
+          console.log(`[WebSocket] Execution success for prompt ${promptId} - job completed!`);
+          // Send completion signal with progress 100
+          sendUpdate({ status: 'processing', progress: 100 });
+          // Close after short delay to allow history/filesystem to populate
           setTimeout(() => {
             if (!isClosed) {
               isClosed = true;
               clearTimeout(timeoutId);
               ws.close();
               if (pendingResolve) {
+                // Send a completion signal that will trigger filesystem check
                 pendingResolve({ status: 'processing', progress: 100 });
               }
             }
-          }, 2000);
+          }, 1000); // Reduced delay to 1s
         }
       }
       

@@ -347,9 +347,12 @@ export async function getAllComfyUIHistory(): Promise<{ [key: string]: unknown }
 
 /**
  * Get output image from ComfyUI
+ * Uses Next.js proxy route for better reliability and CORS handling
  */
 export function getComfyUIOutputImage(filename: string): string {
-  return `${COMFYUI_HOST}/view?filename=${encodeURIComponent(filename)}&type=output`;
+  // Use Next.js proxy route instead of direct ComfyUI URL for better reliability
+  // This ensures images are accessible even if ComfyUI has CORS restrictions
+  return `/api/comfyui/output?filename=${encodeURIComponent(filename)}`;
 }
 
 /**
@@ -386,8 +389,15 @@ export async function findLatestOutputImage(
     
     if (matchingFiles.length === 0) {
       console.log(`[FileSystem] No files found with prefix "${filenamePrefix}" in output directory`);
+      console.log(`[FileSystem]   Output directory: ${outputDir}`);
+      console.log(`[FileSystem]   Total files in directory: ${files.length}`);
+      if (files.length > 0) {
+        console.log(`[FileSystem]   Sample files: ${files.slice(0, 5).join(', ')}`);
+      }
       return null;
     }
+    
+    console.log(`[FileSystem] Found ${matchingFiles.length} file(s) matching prefix "${filenamePrefix}"`);
     
     // Get file stats and sort by modification time (newest first)
     const filesWithStats = await Promise.all(
@@ -402,23 +412,35 @@ export async function findLatestOutputImage(
     filesWithStats.sort((a, b) => b.mtime - a.mtime);
     
     // If jobStartTime is provided, filter to files created after job started
+    // But be lenient - allow files created up to 5 seconds before job start (in case of clock skew)
     let candidateFiles = filesWithStats;
     if (jobStartTime) {
-      candidateFiles = filesWithStats.filter(f => f.mtime >= jobStartTime);
+      const adjustedStartTime = jobStartTime - 5000; // Allow 5 second window for clock skew
+      candidateFiles = filesWithStats.filter(f => f.mtime >= adjustedStartTime);
       if (candidateFiles.length === 0) {
         // If no files created after job start, use the most recent file anyway
-        console.log(`[FileSystem] No files created after job start, using most recent file`);
-        candidateFiles = [filesWithStats[0]];
+        console.log(`[FileSystem] No files created after job start (${new Date(jobStartTime).toISOString()}), using most recent file`);
+        if (filesWithStats.length > 0) {
+          candidateFiles = [filesWithStats[0]];
+        }
+      } else {
+        console.log(`[FileSystem] Found ${candidateFiles.length} file(s) created after job start`);
       }
     }
     
     if (candidateFiles.length > 0) {
       const latestFile = candidateFiles[0];
       const imageUrl = getComfyUIOutputImage(latestFile.filename);
-      console.log(`[FileSystem] Found latest output image: ${latestFile.filename} (modified: ${new Date(latestFile.mtime).toISOString()})`);
+      const fileAge = jobStartTime ? latestFile.mtime - jobStartTime : 0;
+      console.log(`[FileSystem] ✅ Found latest output image: ${latestFile.filename}`);
+      console.log(`[FileSystem]   Modified: ${new Date(latestFile.mtime).toISOString()}`);
+      console.log(`[FileSystem]   Job started: ${jobStartTime ? new Date(jobStartTime).toISOString() : 'unknown'}`);
+      console.log(`[FileSystem]   File age relative to job: ${fileAge}ms`);
+      console.log(`[FileSystem]   Image URL: ${imageUrl}`);
       return { filename: latestFile.filename, imageUrl };
     }
     
+    console.log(`[FileSystem] ❌ No candidate files found (total matching files: ${filesWithStats.length})`);
     return null;
   } catch (error) {
     console.error('[FileSystem] Error finding output image:', error);
@@ -720,66 +742,85 @@ export async function* pollComfyUIJob(
           lastProgress = update.progress;
         }
         
-        // If execution completed via WebSocket (progress 100%), check history for final image
+        // If execution completed via WebSocket (progress 100%), mark as completed
         if (update.progress === 100) {
           wsCompleted = true;
-          console.log(`[Poll] WebSocket indicated completion (progress: 100%), checking history...`);
-          // Don't break yet - let the WebSocket close naturally, then check history
+          console.log(`[Poll] WebSocket indicated completion (progress: 100%), checking for image immediately...`);
+          
+          // Immediately check filesystem when we get 100% progress
+          // Don't wait for WebSocket to close
+          const immediateImage = await findLatestOutputImage(promptId, 'anthroposcenic', jobStartTime);
+          if (immediateImage) {
+            console.log(`✅ ComfyUI job ${promptId} completed - found image immediately! Image: ${immediateImage.filename}, URL: ${immediateImage.imageUrl}`);
+            yield { status: 'complete', progress: 100, imageUrl: immediateImage.imageUrl };
+            return;
+          }
+          console.log(`[Poll] Immediate filesystem check didn't find image, will retry after WebSocket closes...`);
         }
       }
       
-      // Always check history after WebSocket stream ends (in case execution completed)
-      // Wait a moment for history to populate
+      // Always check for image after WebSocket stream ends (if execution completed or high progress)
       if (lastProgress >= 95 || wsCompleted) {
-        console.log(`[Poll] Checking history for completed job ${promptId}...`);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for history to populate
+        console.log(`[Poll] WebSocket stream ended (progress: ${lastProgress}%, completed: ${wsCompleted}), checking for output image...`);
         
-        // Try history API first
-        const history = await getAllComfyUIHistory();
-        if (history && history[promptId]) {
-          const jobData = history[promptId] as {
-            outputs?: {
-              [nodeId: string]: {
-                images?: Array<{
-                  filename: string;
-                  subfolder?: string;
-                  type?: string;
-                }>;
+        // Try filesystem first (most reliable) - check multiple times with increasing delays
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const delay = attempt === 0 ? 500 : 1000 * attempt; // 0.5s, 1s, 2s, 3s, 4s, 5s
+          if (delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+          
+          console.log(`[Poll] Filesystem check attempt ${attempt + 1}/6 for prompt ${promptId} (after ${delay}ms delay)...`);
+          const filesystemImage = await findLatestOutputImage(promptId, 'anthroposcenic', jobStartTime);
+          if (filesystemImage) {
+            console.log(`✅ ComfyUI job ${promptId} completed via filesystem check! Image: ${filesystemImage.filename}, URL: ${filesystemImage.imageUrl}`);
+            yield { status: 'complete', progress: 100, imageUrl: filesystemImage.imageUrl };
+            return;
+          }
+          
+          // Also try history API (every other attempt to balance speed and reliability)
+          if (attempt % 2 === 1) {
+            console.log(`[Poll] Checking history API for prompt ${promptId}...`);
+            const history = await getAllComfyUIHistory();
+            if (history && history[promptId]) {
+              const jobData = history[promptId] as {
+                outputs?: {
+                  [nodeId: string]: {
+                    images?: Array<{
+                      filename: string;
+                      subfolder?: string;
+                      type?: string;
+                    }>;
+                  };
+                };
               };
-            };
-          };
-          
-          console.log(`[Poll] Found job in history, checking outputs...`, Object.keys(jobData.outputs || {}));
-          
-          if (jobData.outputs) {
-            for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
-              if (nodeOutputs.images && nodeOutputs.images.length > 0) {
-                const image = nodeOutputs.images[0];
-                const filename = image.filename;
-                const subfolder = image.subfolder || '';
-                const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
-                const imageUrl = getComfyUIOutputImage(imagePath);
-                
-                console.log(`✅ ComfyUI job ${promptId} completed via history! Image: ${filename}, URL: ${imageUrl}`);
-                yield { status: 'complete', progress: 100, imageUrl };
-                return;
+              
+              console.log(`[Poll] Found job in history, checking outputs...`, Object.keys(jobData.outputs || {}));
+              
+              if (jobData.outputs) {
+                for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
+                  console.log(`[Poll] Checking node ${nodeId} for images...`);
+                  if (nodeOutputs.images && nodeOutputs.images.length > 0) {
+                    const image = nodeOutputs.images[0];
+                    const filename = image.filename;
+                    const subfolder = image.subfolder || '';
+                    const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
+                    const imageUrl = getComfyUIOutputImage(imagePath);
+                    
+                    console.log(`✅ ComfyUI job ${promptId} completed via history! Image: ${filename}, Path: ${imagePath}, URL: ${imageUrl}`);
+                    yield { status: 'complete', progress: 100, imageUrl };
+                    return;
+                  }
+                }
               }
+              console.log(`[Poll] History found but no images in outputs`);
+            } else {
+              console.log(`[Poll] Job ${promptId} not found in history yet`);
             }
           }
-          console.log(`[Poll] Job found in history but no images in outputs`);
-        } else {
-          console.log(`[Poll] Job ${promptId} not found in history, trying filesystem fallback...`);
         }
         
-        // Fallback: Check filesystem directly for latest output image
-        const filesystemImage = await findLatestOutputImage(promptId, 'anthroposcenic', jobStartTime);
-        if (filesystemImage) {
-          console.log(`✅ ComfyUI job ${promptId} completed via filesystem check! Image: ${filesystemImage.filename}, URL: ${filesystemImage.imageUrl}`);
-          yield { status: 'complete', progress: 100, imageUrl: filesystemImage.imageUrl };
-          return;
-        }
-        
-        // If no image found yet, fall through to HTTP polling
+        console.log(`[Poll] Image not found after ${6} attempts, falling through to HTTP polling...`);
       }
     } catch (error) {
       console.warn('WebSocket connection failed, falling back to HTTP polling:', error);
