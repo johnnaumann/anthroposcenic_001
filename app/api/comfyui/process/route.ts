@@ -82,7 +82,8 @@ export async function POST(request: NextRequest) {
         
         const imageBuffer = await readFile(imageFile.path);
         imageBase64 = imageBuffer.toString('base64');
-        const filename = `${imageId}${imageFile.path.split('.').pop() || '.png'}`;
+        const extension = imageFile.path.split('.').pop() || 'png';
+        const filename = `${imageId}.${extension}`;
         const comfyImagePath = join(comfyInputDir, filename);
         
         await copyFile(imageFile.path, comfyImagePath);
