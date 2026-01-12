@@ -353,15 +353,15 @@ export async function createComfyUIWorkflow(
     },
 
     // Node 2: Resize Image (Memory optimization - limit size)
-    // Use ImageScale with "to" method to resize to specific dimensions
+    // ImageScale node expects "image" (singular) not "images"
     [nodeIds.resizeImage]: {
       class_type: 'ImageScale',
       inputs: {
+        image: [nodeIds.loadImage, 0], // Fixed: use "image" not "images"
         upscale_method: 'lanczos',
         crop: 'disabled',
         width: maxWidth,
         height: maxHeight,
-        images: [nodeIds.loadImage, 0],
       },
       _meta: { title: 'Resize Image (Memory Optimization)' },
     },
@@ -621,9 +621,9 @@ export async function* pollComfyUIJob(
         // Check for execution errors first
         if (jobData.status?.node_errors && Object.keys(jobData.status.node_errors).length > 0) {
           const errorMessages = Object.entries(jobData.status.node_errors)
-            .map(([node, errors]) => `Node ${node}: ${errors.join(', ')}`)
+            .map(([node, errors]) => `Node ${node}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
             .join('; ');
-          console.error(`ComfyUI job ${promptId} has errors:`, errorMessages);
+          console.error(`ComfyUI job ${promptId} has errors:`, JSON.stringify(jobData.status.node_errors, null, 2));
           throw new Error(`ComfyUI workflow errors: ${errorMessages}`);
         }
         
