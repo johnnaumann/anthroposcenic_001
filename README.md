@@ -11,12 +11,14 @@ flowchart LR
     C --> D[🎨 ComfyUI]
     D --> E[✨ Processed Image]
     
-    style A fill:#3b82f6
-    style B fill:#f59e0b
-    style C fill:#10b981
-    style D fill:#8b5cf6
-    style E fill:#ec4899
+    style A fill:#e5e5e5
+    style B fill:#d4d4d4
+    style C fill:#a3a3a3
+    style D fill:#737373
+    style E fill:#525252
 ```
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+grep
 
 ## Why Local?
 
@@ -55,10 +57,10 @@ graph TB
     API --> comfy
     API --> FS
     
-    style local fill:#1e293b,stroke:#334155
-    style app fill:#3b82f6,stroke:#60a5fa
-    style ollama fill:#f59e0b,stroke:#fbbf24
-    style comfy fill:#8b5cf6,stroke:#a78bfa
+    style local fill:#e5e5e5,stroke:#d4d4d4
+    style app fill:#d4d4d4,stroke:#a3a3a3
+    style ollama fill:#a3a3a3,stroke:#737373
+    style comfy fill:#737373,stroke:#525252
 ```
 
 **All communication via `localhost` — zero external calls.**

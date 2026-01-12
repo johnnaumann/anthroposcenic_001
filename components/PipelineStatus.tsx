@@ -36,9 +36,9 @@ export function PipelineStatus({ step, error }: PipelineStatusProps) {
               <div key={stepItem.id} className="flex items-center gap-4">
                 <div className={cn(
                   "flex items-center justify-center w-8 h-8 rounded-full border-2",
-                  isComplete && "bg-primary border-primary text-primary-foreground",
-                  isActive && !isError && "border-primary text-primary",
-                  isError && "border-destructive text-destructive",
+                  isComplete && "bg-foreground border-foreground text-background",
+                  isActive && !isError && "border-foreground text-foreground bg-muted",
+                  isError && "border-foreground/50 text-foreground/70 bg-muted",
                   !isActive && !isComplete && "border-muted text-muted-foreground"
                 )}>
                   {isComplete ? (
@@ -60,7 +60,7 @@ export function PipelineStatus({ step, error }: PipelineStatusProps) {
                     {stepItem.label}
                   </div>
                   {isError && error && (
-                    <div className="text-xs text-destructive mt-1">{error}</div>
+                    <div className="text-xs text-foreground/70 mt-1">{error}</div>
                   )}
                 </div>
               </div>

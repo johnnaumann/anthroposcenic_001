@@ -146,7 +146,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           </div>
         </div>
         {error && (
-          <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+          <div className="p-3 bg-muted text-foreground/80 border border-foreground/20 text-sm rounded-md">
             {error}
           </div>
         )}

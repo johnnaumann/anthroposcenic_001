@@ -142,7 +142,7 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
           </label>
         </div>
         {error && (
-          <div className="mt-4 p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+          <div className="mt-4 p-3 bg-muted text-foreground/80 border border-foreground/20 text-sm rounded-md">
             {error}
           </div>
         )}

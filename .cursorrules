@@ -113,25 +113,35 @@ This is a Next.js application that processes images through an AI pipeline:
 
 ## UI/UX Guidelines
 
+### Color Palette - Monotone Only
+- **CRITICAL**: Use ONLY monotone (grayscale) colors for all UI and documentation
+- No color variations - only shades of black, white, and gray
+- Use grayscale palette with proper contrast ratios for accessibility
+- Documentation (README, markdown) must also use monotone styling
+- UI components must use grayscale variants only
+- Status indicators use grayscale patterns (stripes, dots, etc.) instead of colors
+- Icons should be monochrome/grayscale versions
+
 ### ShadCN UI Components
 - Use ShadCN components as base
-- Customize with Tailwind classes
-- Maintain consistent styling
-- Follow ShadCN design patterns
+- Customize with Tailwind classes using ONLY grayscale colors
+- Maintain consistent monotone styling throughout
+- Follow ShadCN design patterns but with grayscale palette
 - Use appropriate components for each use case
+- Replace all color-based states (success, warning, error) with grayscale equivalents
 
 ### Streaming UI
-- Show loading states during streaming
+- Show loading states during streaming using grayscale animations
 - Display streaming text in real-time
-- Provide visual feedback for progress
+- Provide visual feedback for progress using grayscale indicators
 - Handle streaming interruptions gracefully
 - Allow users to cancel operations
 
 ### Image Handling
 - Support drag & drop uploads
 - Show image previews
-- Display upload progress
-- Handle image errors (invalid format, too large)
+- Display upload progress using grayscale progress bars
+- Handle image errors (invalid format, too large) with grayscale error states
 - Optimize images for display
 
 ## State Management
@@ -258,7 +268,15 @@ app/
 - Explain streaming implementations
 - Note any workarounds or hacks
 
-### README
+### README & Documentation Styling
+- Use ONLY monotone (grayscale) color palette in all documentation
+- No colored badges, emojis with colors, or color-coded sections
+- Use grayscale patterns, symbols, or text-based indicators instead
+- Maintain professional monotone aesthetic in all markdown files
+- Code blocks should use grayscale syntax highlighting themes
+- Diagrams (Mermaid) should use grayscale color schemes
+
+### README Content
 - Setup instructions
 - Environment variable documentation
 - API endpoint documentation
