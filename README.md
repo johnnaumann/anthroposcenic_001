@@ -1,340 +1,370 @@
-# Anthroposcenic - Local AI Image Processing Pipeline
+# Anthroposcenic
 
-**A completely local, privacy-first image processing application** that runs entirely on your machine with no external API calls or cloud services.
+**A 100% local, privacy-first AI image processing pipeline.**
 
-## 🏠 100% Local Operation
+Upload an image → Generate AI description → Process with ComfyUI → All on your machine.
 
-This application processes images **completely locally**:
-- ✅ All AI models run on your machine
-- ✅ No data sent to external servers
-- ✅ No API keys required
-- ✅ Works offline (after initial setup)
-- ✅ Complete privacy and data control
+```mermaid
+flowchart LR
+    A[📷 Upload Image] --> B[🤖 Ollama]
+    B --> C[📝 Stream Description]
+    C --> D[🎨 ComfyUI]
+    D --> E[✨ Processed Image]
+    
+    style A fill:#3b82f6
+    style B fill:#f59e0b
+    style C fill:#10b981
+    style D fill:#8b5cf6
+    style E fill:#ec4899
+```
 
-**See [LOCAL_ONLY.md](./LOCAL_ONLY.md) for complete details on local-only operation.**
+## Why Local?
+
+- **🔒 Privacy**: Images never leave your machine
+- **💰 Free**: No API costs or rate limits  
+- **🔌 Offline**: Works without internet (after setup)
+- **⚡ Fast**: No network latency
+- **🎛️ Control**: Full customization of models and workflows
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph local["🖥️ Your Local Machine"]
+        subgraph app["Next.js App :3000"]
+            UI[Web Interface]
+            API[API Routes]
+        end
+        
+        subgraph ollama["Ollama :11434"]
+            VM[Vision Model<br/>qwen3-vl:8b]
+        end
+        
+        subgraph comfy["ComfyUI :8188"]
+            SD[Stable Diffusion<br/>Models]
+            WF[Programmatic<br/>Workflows]
+        end
+        
+        FS[(Local Storage<br/>./uploads)]
+    end
+    
+    UI --> API
+    API --> ollama
+    API --> comfy
+    API --> FS
+    
+    style local fill:#1e293b,stroke:#334155
+    style app fill:#3b82f6,stroke:#60a5fa
+    style ollama fill:#f59e0b,stroke:#fbbf24
+    style comfy fill:#8b5cf6,stroke:#a78bfa
+```
+
+**All communication via `localhost` — zero external calls.**
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| Node.js | 18+ | Next.js app |
+| Python | 3.10+ | ComfyUI |
+| RAM | 16GB+ | AI models |
+| Storage | 20GB+ | Models & images |
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/yourusername/anthroposcenic.git
+cd anthroposcenic
+npm install
+```
+
+### 2. Install Ollama
+
+**macOS:**
+```bash
+brew install ollama
+```
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**Windows:** Download from [ollama.com/download](https://ollama.com/download)
+
+### 3. Pull Vision Model
+
+```bash
+ollama pull qwen3-vl:8b
+```
+
+*Alternative models: `llava:7b` (faster), `llava:13b` (higher quality)*
+
+### 4. Setup ComfyUI
+
+```bash
+npm run comfyui:setup
+```
+
+This clones ComfyUI, creates a Python venv, and installs dependencies.
+
+### 5. Download SD Model
+
+ComfyUI needs a Stable Diffusion checkpoint. Download one to:
+
+```
+comfyui/models/checkpoints/
+```
+
+Recommended sources:
+- [Hugging Face](https://huggingface.co/runwayml/stable-diffusion-v1-5)
+- [Civitai](https://civitai.com)
+
+### 6. Start Everything
+
+```bash
+npm run dev
+```
+
+This starts all services concurrently and opens your browser:
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Next.js | http://localhost:3000 | 🔵 App |
+| Ollama | http://localhost:11434 | 🟡 AI |
+| ComfyUI | http://localhost:8188 | 🟣 Image Gen |
+
+---
 
 ## How It Works
 
-1. Upload an image
-2. Generate a text description using **local Ollama** (thinking model like Qwen)
-3. Stream the description to the browser
-4. Send image + description to **local ComfyUI**
-5. Stream ComfyUI output back to the application
-
-**Everything runs on `localhost` - no cloud, no external services.**
-
-## Technology Stack
-
-- **Framework**: Next.js 14+ (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: ShadCN UI
-- **AI Model**: Ollama (Qwen2.5-VL or similar)
-- **Image Processing**: ComfyUI
-
-## Prerequisites
-
-- Node.js 18+ and npm/yarn/pnpm
-- Python 3.8+ (for ComfyUI)
-- Git
-- **Ollama** installed locally (see [OLLAMA_SETUP.md](./OLLAMA_SETUP.md))
-- **ComfyUI** installed locally (see [COMFYUI_SETUP.md](./COMFYUI_SETUP.md))
-- Qwen2.5-VL or similar vision model (installed locally via Ollama)
-
-**All services run on your local machine - no cloud required!**
-
-## Setup
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   # or
-   yarn install
-   # or
-   pnpm install
-   ```
-
-2. **Set up Ollama (Local AI):**
-   ```bash
-   # Automated setup (recommended)
-   npm run ollama:setup
-   # or manually: ./scripts/setup-ollama.sh
-   ```
-   
-   See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed instructions.
-   
-   **Important:** This installs and runs Ollama locally on your machine. All AI processing happens on `localhost:11434`.
-
-3. **Set up environment variables:**
-   Create a `.env.local` file in the root directory:
-   ```env
-   # Ollama Configuration (Local - runs on your machine)
-   OLLAMA_HOST=http://localhost:11434
-   OLLAMA_MODEL=qwen3-vl:8b
-
-   # ComfyUI Configuration (Local - runs on your machine)
-   COMFYUI_HOST=http://localhost:8188
-   COMFYUI_WS_URL=ws://localhost:8188/ws
-
-   # File Upload (Local storage)
-   MAX_FILE_SIZE=10485760
-   UPLOAD_DIR=./uploads
-   TEMP_DIR=./temp
-
-   # Next.js
-   NEXT_PUBLIC_API_URL=http://localhost:3000
-   ```
-
-4. **Set up ComfyUI:**
-   ```bash
-   # Automated setup (recommended)
-   npm run comfyui:setup
-   # or manually: ./scripts/setup-comfyui.sh
-   ```
-   
-   See [COMFYUI_SETUP.md](./COMFYUI_SETUP.md) for detailed instructions.
-
-5. **Start ComfyUI:**
-   ```bash
-   npm run comfyui:run
-   # or manually: ./scripts/run-comfyui.sh
-   ```
-   
-   ComfyUI will be available at http://localhost:8188 (local only)
-
-6. **Install Ollama models:**
-   ```bash
-   npm run ollama:models
-   # or manually: ./scripts/install-ollama-models.sh
-   ```
-   
-   This will install the recommended vision model (qwen2.5-vl:latest) from `config/models.json`.
-
-7. **Verify Ollama is running:**
-   ```bash
-   npm run ollama:check
-   # or manually: ./scripts/check-ollama.sh
-   ```
-
-8. **Start the development server:**
-   ```bash
-   npm run dev
-   # or
-   yarn dev
-   # or
-   pnpm dev
-   ```
-
-9. **Open your browser:**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## Local-Only Architecture
-
-```
-┌─────────────────────────────────────────┐
-│     Your Local Machine                  │
-│                                         │
-│  ┌──────────────┐    ┌──────────────┐  │
-│  │  Next.js App │───▶│   Ollama     │  │
-│  │  (Port 3000) │    │ (Port 11434) │  │
-│  │              │    │   LOCAL      │  │
-│  └──────────────┘    └──────────────┘  │
-│         │                  │            │
-│         │                  ▼            │
-│         │          ┌──────────────┐    │
-│         │          │ Vision Model │    │
-│         │          │  (Local RAM)  │    │
-│         │          └──────────────┘    │
-│         │                              │
-│         ▼                              │
-│  ┌──────────────┐                      │
-│  │   ComfyUI    │                      │
-│  │ (Port 8188)  │                      │
-│  │    LOCAL     │                      │
-│  └──────────────┘                      │
-│                                         │
-│  ✅ All processing stays local!        │
-│  ✅ No external API calls               │
-│  ✅ Complete privacy                    │
-└─────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant N as Next.js
+    participant O as Ollama
+    participant C as ComfyUI
+    
+    U->>N: Upload Image
+    N->>N: Store locally
+    N->>O: Send image for description
+    O-->>N: Stream description tokens
+    N-->>U: Display streaming text
+    N->>C: Send image + description
+    C->>C: Process (img2img)
+    C-->>N: Stream progress
+    N-->>U: Display result
 ```
 
-## Ollama Setup (Local AI)
+### Pipeline Steps
 
-Ollama runs completely locally on your machine. See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed setup instructions.
+1. **Upload** — Image saved to `./uploads/`
+2. **Describe** — Ollama vision model analyzes image, streams description
+3. **Process** — ComfyUI runs img2img workflow with description as prompt
+4. **Result** — Processed image streamed back to browser
 
-**Quick start:**
-```bash
-# Install and verify Ollama
-npm run ollama:setup
-
-# Check status
-npm run ollama:check
-```
-
-**Key points:**
-- All AI processing happens on `localhost:11434`
-- Models are downloaded once and stored locally
-- No internet required after setup (except for initial model download)
-- Complete privacy - images never leave your machine
-
-## ComfyUI Setup
-
-ComfyUI setup is automated via scripts. For detailed instructions, see [COMFYUI_SETUP.md](./COMFYUI_SETUP.md).
-
-**Quick start:**
-```bash
-# Install ComfyUI
-npm run comfyui:setup
-
-# Run ComfyUI
-npm run comfyui:run
-```
-
-**Note:** You'll need to install at least one model checkpoint for ComfyUI to work. See the setup guide for details.
-
-## Project Structure
-
-```
-app/
-├── api/
-│   ├── upload/route.ts          # Image upload endpoint
-│   ├── describe/route.ts         # Ollama description streaming
-│   ├── comfyui/process/route.ts  # ComfyUI processing
-│   └── images/[imageId]/route.ts # Image retrieval
-├── components/
-│   ├── ui/                       # ShadCN UI components
-│   ├── ImageUploadZone.tsx
-│   ├── DescriptionStream.tsx
-│   ├── ComfyUIProgress.tsx
-│   └── PipelineStatus.tsx
-├── lib/
-│   ├── ollama.ts                 # Ollama client utilities
-│   ├── comfyui.ts                # ComfyUI client utilities
-│   ├── streaming.ts              # Streaming utilities
-│   └── utils.ts                  # General utilities
-├── types/
-│   └── index.ts                  # TypeScript types
-└── page.tsx                      # Main application page
-```
-
-## API Routes
-
-### POST `/api/upload`
-Upload an image file. Returns image metadata including `imageId`.
-
-### POST `/api/describe`
-Stream image description from Ollama. Takes `imageId` and optional `model` parameter.
-
-### POST `/api/comfyui/process`
-Process image with ComfyUI. Takes `imageId` and `description`.
-
-### GET `/api/images/[imageId]`
-Retrieve uploaded image by ID.
-
-### GET `/api/models`
-Get available Ollama models from configuration.
-
-## Usage
-
-1. **Upload an image** using the drag-and-drop zone or file picker
-2. **Wait for description** - The app automatically sends the image to Ollama and streams the description
-3. **Review the description** - You can copy it if needed
-4. **ComfyUI processing** - The app automatically sends the image and description to ComfyUI
-5. **View results** - The processed image will appear when ComfyUI completes
+---
 
 ## Configuration
 
-### Local Services
+### Environment Variables
 
-All services run locally on your machine:
+Create `.env.local`:
 
-- **Ollama**: `http://localhost:11434` (local AI processing)
-- **ComfyUI**: `http://localhost:8188` (local image generation)
-- **Next.js**: `http://localhost:3000` (application)
+```env
+# Ollama (Local)
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=qwen3-vl:8b
 
-**Never change these to external URLs** - this application is designed for local-only operation.
+# ComfyUI (Local)
+COMFYUI_HOST=http://localhost:8188
 
-### Ollama Models (Local)
-Models are configured in `config/models.json`. The default model is `qwen2.5-vl:latest`.
+# Storage
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE=10485760
+```
 
-**Available models:**
-- `qwen3-vl:8b` - Recommended (thinking process, ~6GB) ✅ You have this installed
-- `llava:7b` - Faster alternative (~4GB) ✅ You have this installed
-- `qwen2.5-vl:latest` - Alternative (if available, ~7GB)
-- `llava:13b` - Higher quality (~7GB)
-- `bakllava:latest` - Alternative option (~4GB)
+### Model Configuration
 
-**Install models:**
+Models are defined in `config/models.json`:
+
+```json
+{
+  "ollama": {
+    "default": "qwen3-vl:8b",
+    "vision": {
+      "qwen3-vl:8b": { "recommended": true },
+      "llava:7b": { "recommended": false }
+    }
+  }
+}
+```
+
+Install recommended models:
 ```bash
 npm run ollama:models
 ```
 
-**Change model:**
-- Set `OLLAMA_MODEL` in `.env.local`
-- Or modify `config/models.json` to change the default
+---
 
-All models run locally on your machine - no cloud API calls.
+## Project Structure
 
-### ComfyUI Workflow (Local)
-The ComfyUI workflow is created programmatically in `lib/comfyui.ts`. All workflows run locally on your machine. See [COMFYUI_WORKFLOW.md](./COMFYUI_WORKFLOW.md) for details on how workflows are built in code.
-
-### File Upload
-- Maximum file size: 10MB (configurable via `MAX_FILE_SIZE`)
-- Allowed formats: JPEG, PNG, GIF, WEBP
-- Upload directory: `./uploads` (configurable via `UPLOAD_DIR`)
-
-## Development
-
-### Build for production:
-```bash
-npm run build
-npm start
+```
+├── app/
+│   ├── api/
+│   │   ├── upload/          # Image upload
+│   │   ├── describe/        # Ollama streaming
+│   │   ├── comfyui/         # ComfyUI processing
+│   │   └── models/          # Model list
+│   └── page.tsx             # Main UI
+├── components/
+│   ├── ui/                  # ShadCN components
+│   ├── ImageUploadZone.tsx
+│   ├── DescriptionStream.tsx
+│   └── ComfyUIProgress.tsx
+├── lib/
+│   ├── ollama.ts            # Ollama client
+│   ├── comfyui.ts           # ComfyUI client + workflow
+│   └── models.ts            # Model utilities
+├── comfyui/                 # ComfyUI installation
+├── config/
+│   └── models.json          # Model definitions
+└── scripts/
+    ├── start-ollama.sh
+    ├── start-comfyui.sh
+    └── setup-comfyui.sh
 ```
 
-### Lint:
-```bash
-npm run lint
+---
+
+## ComfyUI Workflow
+
+The workflow is built **programmatically in code** — no UI required.
+
+```mermaid
+flowchart LR
+    A[LoadImage] --> B[VAEEncode]
+    C[CheckpointLoader] --> B
+    C --> D[CLIPTextEncode+]
+    C --> E[CLIPTextEncode-]
+    B --> F[KSampler]
+    D --> F
+    E --> F
+    F --> G[VAEDecode]
+    G --> H[SaveImage]
 ```
 
-## Privacy & Local-Only Operation
+Customize in `lib/comfyui.ts`:
 
-This application is designed for **complete local operation**:
+```typescript
+createComfyUIWorkflow(imageFilename, description, {
+  checkpoint: 'model.safetensors',
+  steps: 30,
+  cfgScale: 8.0,
+  denoiseStrength: 0.6,
+})
+```
 
-✅ **All processing happens on your machine:**
-- Image uploads stored locally
-- AI description generation via local Ollama
-- Image processing via local ComfyUI
-- No external API calls
-- No data leaves your computer
+---
 
-✅ **Privacy benefits:**
-- Images never sent to external services
-- No API keys or authentication required
-- Works offline (after initial setup)
-- Complete control over your data
+## API Reference
 
-⚠️ **Important:** Keep all services on `localhost`. Do not configure external URLs.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/upload` | POST | Upload image, returns `imageId` |
+| `/api/describe` | POST | Stream description from Ollama |
+| `/api/comfyui/process` | POST | Process with ComfyUI |
+| `/api/images/[id]` | GET | Retrieve uploaded image |
+| `/api/models` | GET | List available models |
+
+---
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start all services + open browser |
+| `npm run dev:next` | Start Next.js only |
+| `npm run dev:ollama` | Start Ollama only |
+| `npm run dev:comfyui` | Start ComfyUI only |
+| `npm run comfyui:setup` | Install ComfyUI |
+| `npm run ollama:models` | Install recommended models |
+| `npm run ollama:check` | Verify Ollama status |
+
+---
 
 ## Troubleshooting
 
-### Ollama Connection Issues (Local)
-- Ensure Ollama is running locally: `ollama serve`
-- Check `OLLAMA_HOST` is `http://localhost:11434` (not external URL)
-- Verify model is installed locally: `ollama list`
-- Run health check: `npm run ollama:check`
+### Service Won't Start
 
-### ComfyUI Connection Issues (Local)
-- Ensure ComfyUI is running locally
-- Check `COMFYUI_HOST` is `http://localhost:8188` (not external URL)
-- Verify ComfyUI API is accessible: `curl http://localhost:8188/system_stats`
-- Check that models are installed in `comfyui/models/`
+```bash
+# Check what's using ports
+lsof -i :3000   # Next.js
+lsof -i :11434  # Ollama
+lsof -i :8188   # ComfyUI
 
-### Image Upload Issues
-- Check file size (max 10MB by default)
-- Verify upload directory permissions
-- Check file format (images only)
+# Kill stuck processes
+pkill ollama
+pkill -f "python.*main.py"
+```
+
+### Ollama Model Not Found
+
+```bash
+ollama list              # See installed models
+ollama pull qwen3-vl:8b  # Re-download
+```
+
+### ComfyUI Python Errors
+
+```bash
+cd comfyui
+./venv/bin/pip install -r requirements.txt
+```
+
+### Out of Memory
+
+- Use smaller models: `llava:7b` instead of `qwen3-vl:8b`
+- Close other applications
+- Reduce ComfyUI steps/resolution
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, React, TypeScript |
+| Styling | Tailwind CSS, ShadCN UI |
+| AI Description | Ollama (qwen3-vl, llava) |
+| Image Processing | ComfyUI (Stable Diffusion) |
+| Streaming | Server-Sent Events |
+
+---
+
+## Privacy Guarantee
+
+```
+┌─────────────────────────────────────────────┐
+│  ✅ Images stored locally (./uploads)       │
+│  ✅ AI runs on localhost:11434 (Ollama)     │
+│  ✅ Processing on localhost:8188 (ComfyUI)  │
+│  ✅ Zero external API calls                 │
+│  ✅ No API keys required                    │
+│  ✅ Works offline after setup               │
+└─────────────────────────────────────────────┘
+```
+
+**Your images never leave your machine.**
+
+---
 
 ## License
 
-See LICENSE file for details.
+See [LICENSE](./LICENSE) file.
