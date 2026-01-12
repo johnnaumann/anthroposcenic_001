@@ -40,6 +40,14 @@ export default function Home() {
     setError(null);
   };
 
+  const handleRemoveImage = () => {
+    setUploadedImage(null);
+    setDescription(null);
+    setResultImage(null);
+    setPipelineStep('upload');
+    setError(null);
+  };
+
   return (
     <main className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -57,6 +65,8 @@ export default function Home() {
         <div className="space-y-6">
           <ImageUploadZone
             onUploadComplete={handleUploadComplete}
+            onRemove={handleRemoveImage}
+            imageId={uploadedImage?.imageId || null}
             disabled={pipelineStep !== 'upload'}
           />
 

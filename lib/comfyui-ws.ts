@@ -8,11 +8,21 @@ const COMFYUI_WS_URL = process.env.COMFYUI_WS_URL || 'ws://localhost:8188/ws';
 
 export interface ComfyUIWebSocketMessage {
   type: string;
-  data?: unknown;
-  prompt_id?: string;
+  data?: {
+    value?: number;
+    max?: number;
+    prompt_id?: string;
+    node?: string | null;
+    error?: {
+      message?: string;
+      node?: number;
+    };
+    [key: string]: unknown;
+  };
+  prompt_id?: string; // Some messages have prompt_id at top level
   node?: string;
-  value?: number;
-  max?: number;
+  value?: number; // Legacy format (deprecated)
+  max?: number; // Legacy format (deprecated)
   status?: {
     status?: Array<[string, unknown]>;
     exec_info?: {
@@ -63,22 +73,45 @@ export async function* streamComfyUIProgress(
     try {
       const message = JSON.parse(data.toString()) as ComfyUIWebSocketMessage;
       
-      // Filter messages for our prompt ID if present
-      if (message.prompt_id && message.prompt_id !== promptId) {
-        return; // Skip messages for other prompts
+      // Debug: Log all message types (can be disabled in production)
+      if (process.env.DEBUG_WS === 'true') {
+        console.log(`[WebSocket] Received message type: ${message.type}`, JSON.stringify(message, null, 2));
       }
       
-      // Handle progress updates
-      // ComfyUI sends progress as value/max (e.g., 5/20 = 25%)
+      // Handle progress updates first (they have prompt_id in data, not at top level)
+      // ComfyUI sends progress as: { type: "progress", data: { value: 1, max: 20, prompt_id: "...", node: null } }
       if (message.type === 'progress') {
-        const current = message.value || 0;
-        const max = message.max || 100;
+        const progressData = message.data;
+        const current = progressData?.value ?? message.value ?? 0; // Support both formats
+        const max = progressData?.max ?? message.max ?? 100; // Support both formats
+        
+        // Only process if this message is for our prompt (or if no prompt_id specified, assume it's for us)
+        const messagePromptId = progressData?.prompt_id ?? message.prompt_id;
+        if (messagePromptId && messagePromptId !== promptId) {
+          if (process.env.DEBUG_WS === 'true') {
+            console.log(`[WebSocket] Skipping progress for different prompt: ${messagePromptId} (expected: ${promptId})`);
+          }
+          return; // Skip messages for other prompts
+        }
+        
         // Calculate actual percentage (0-100%)
         const progress = max > 0 ? Math.floor((current / max) * 100) : 0;
         
         // Use actual progress value (no adjustment) to match terminal output
-        console.log(`[WebSocket] Progress: ${current}/${max} = ${progress}%`);
+        console.log(`[WebSocket] Progress: ${current}/${max} = ${progress}% (node: ${progressData?.node || message.node || 'N/A'})`);
         sendUpdate({ status: 'processing', progress });
+      }
+      
+      // Handle progress_state messages (alternative format with node details)
+      if (message.type === 'progress_state') {
+        const progressData = message.data;
+        if (progressData && typeof progressData === 'object') {
+          // progress_state may contain node-level progress information
+          // For now, we'll rely on 'progress' messages, but log this for debugging
+          if (process.env.DEBUG_WS === 'true') {
+            console.log(`[WebSocket] Received progress_state:`, JSON.stringify(progressData));
+          }
+        }
       }
       
       // Handle execution start

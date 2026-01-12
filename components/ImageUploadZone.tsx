@@ -1,21 +1,36 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UploadResponse } from '@/types';
-import { Upload } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 
 interface ImageUploadZoneProps {
   onUploadComplete: (response: UploadResponse) => void;
+  onRemove?: () => void;
+  imageId?: string | null;
   disabled?: boolean;
 }
 
-export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneProps) {
+export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled }: ImageUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [currentImageId, setCurrentImageId] = useState<string | null>(imageId || null);
+
+  // Sync with imageId prop changes (e.g., when parent resets)
+  useEffect(() => {
+    if (imageId) {
+      setCurrentImageId(imageId);
+      setPreview(`/api/images/${imageId}`);
+    } else {
+      setCurrentImageId(null);
+      setPreview(null);
+    }
+  }, [imageId]);
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -67,6 +82,7 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
 
       const data: UploadResponse = await response.json();
       setPreview(data.imageUrl);
+      setCurrentImageId(data.imageId);
       setError(null);
       onUploadComplete(data);
     } catch (err) {
@@ -110,6 +126,38 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
     }
   }, [handleFile]);
 
+  const handleRemove = useCallback(async () => {
+    if (!currentImageId) return;
+
+    setIsRemoving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/images/${currentImageId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove image');
+      }
+
+      // Clear local state
+      setPreview(null);
+      setCurrentImageId(null);
+      setError(null);
+
+      // Notify parent component
+      if (onRemove) {
+        onRemove();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove image');
+    } finally {
+      setIsRemoving(false);
+    }
+  }, [currentImageId, onRemove]);
+
   return (
     <Card>
       <CardHeader>
@@ -142,15 +190,47 @@ export function ImageUploadZone({ onUploadComplete, disabled }: ImageUploadZoneP
             className="cursor-pointer"
           >
             {preview ? (
-              <div className="space-y-4">
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="max-h-64 mx-auto rounded-lg"
-                />
-                <p className="text-sm text-muted-foreground">
-                  Image uploaded successfully
-                </p>
+              <div className="space-y-4 relative">
+                <div className="relative inline-block mx-auto">
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="max-h-64 mx-auto rounded-lg"
+                  />
+                  {!disabled && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemove();
+                      }}
+                      disabled={isRemoving}
+                      className="absolute top-2 right-2 p-1.5 bg-background/90 hover:bg-background border border-foreground/30 rounded-md transition-colors disabled:opacity-50 shadow-sm"
+                      title="Remove image"
+                      aria-label="Remove image"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Image uploaded successfully
+                  </p>
+                  {!disabled && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemove();
+                      }}
+                      disabled={isRemoving}
+                      className="text-sm text-muted-foreground hover:text-foreground underline disabled:opacity-50"
+                    >
+                      {isRemoving ? 'Removing...' : 'Remove'}
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">

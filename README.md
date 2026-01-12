@@ -419,6 +419,7 @@ createComfyUIWorkflow(imageFilename, description, {
 | `/api/upload` | POST | Upload image, returns `imageId` |
 | `/api/describe` | POST | Stream description from Ollama |
 | `/api/comfyui/process` | POST | Process with ComfyUI |
+| `/api/comfyui/samplers` | GET | List available ComfyUI samplers |
 | `/api/images/[id]` | GET | Retrieve uploaded image |
 | `/api/models` | GET | List available models |
 
@@ -434,6 +435,8 @@ createComfyUIWorkflow(imageFilename, description, {
 | `npm run dev:comfyui` | Start ComfyUI only |
 | `npm run comfyui:setup` | Install ComfyUI |
 | `npm run comfyui:test-memory` | Test ComfyUI memory modes to find optimal settings |
+| `npm run comfyui:samplers` | List all available ComfyUI samplers |
+| `npm run comfyui:install-extra-samplers` | Install ComfyUI Extra Samplers plugin (adds more samplers) |
 | `npm run ollama:models` | Install recommended models + create custom model |
 | `npm run ollama:modelfile` | Create/update custom model from modelfile |
 | `npm run ollama:check` | Verify Ollama status |
@@ -487,6 +490,43 @@ ls -lh *.safetensors *.ckpt
 ```bash
 cd comfyui
 ./venv/bin/pip install -r requirements.txt
+```
+
+### Adding More ComfyUI Samplers
+
+ComfyUI comes with built-in samplers, but you can install additional samplers via custom nodes:
+
+**Check Current Samplers:**
+```bash
+npm run comfyui:samplers
+# Or via API: curl http://localhost:3000/api/comfyui/samplers
+```
+
+**Install ComfyUI Extra Samplers (Recommended):**
+```bash
+npm run comfyui:install-extra-samplers
+```
+
+This installs the [ComfyUI Extra Samplers](https://github.com/Clybius/ComfyUI-Extra-Samplers) plugin which adds many additional samplers like:
+- `dpmpp_2m_sde`
+- `dpmpp_2m_sde_gpu`
+- `dpmpp_3m_sde`
+- `dpmpp_3m_sde_gpu`
+- `euler_ancestral`
+- And many more...
+
+**After Installation:**
+1. Restart ComfyUI: `npm run dev:comfyui`
+2. Check available samplers again: `npm run comfyui:samplers`
+3. The new samplers will be automatically detected and available for use
+
+**Alternative: HybridSamplers Plugin**
+For experimental samplers and schedulers:
+```bash
+cd comfyui/custom_nodes
+git clone https://github.com/azazeal04/ComfyUI-HybridSamplers.git
+cd ComfyUI-HybridSamplers
+pip install -r requirements.txt
 ```
 
 ### Out of Memory
