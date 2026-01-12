@@ -46,3 +46,7 @@ next-env.d.ts
 
 # data exports
 /data
+
+# Cursor IDE
+.cursorrules
+.cursor/
