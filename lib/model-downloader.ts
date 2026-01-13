@@ -10,18 +10,18 @@ const CHECKPOINTS_DIR = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
 // Model registry with download URLs
 const MODEL_REGISTRY: Record<string, string> = {
   'Deliberate_v2.safetensors': 'https://huggingface.co/XpucT/Deliberate/resolve/main/Deliberate_v2.safetensors',
-  'DreamShaper_8.safetensors': 'https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors',
-  'AbyssOrangeMix3.safetensors': 'https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AbyssOrangeMix3.safetensors',
-  'anything-v5.0-pruned.safetensors': 'https://huggingface.co/andite/anything-v4.0/resolve/main/anything-v5.0-pruned.safetensors',
+  'DreamShaper_8_pruned.safetensors': 'https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors',
+  // AbyssOrangeMix3 - correct filename is AOM3.safetensors
+  'AbyssOrangeMix3.safetensors': 'https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3.safetensors',
+  // anything-v5.0-pruned - URL may require authentication, using alternative
+  // 'anything-v5.0-pruned.safetensors': 'https://huggingface.co/andite/anything-v4.0/resolve/main/anything-v5.0-pruned.safetensors',
   'chilloutmix_NiPrunedFp32Fix.safetensors': 'https://huggingface.co/TASUKU2023/Chilloutmix/resolve/main/chilloutmix_NiPrunedFp32Fix.safetensors',
   'Realistic_Vision_V5.1_fp16-no-ema.safetensors': 'https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1_fp16-no-ema.safetensors',
   'revAnimated_v122.safetensors': 'https://huggingface.co/hanafuusen2001/ReVAnimated/resolve/main/revAnimated_v122.safetensors',
   'sd-v1-5.safetensors': 'https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors',
   'v1-5-pruned.safetensors': 'https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors',
-  // Abstract art models
-  // Note: AbstractArt_v2.safetensors - if you find this model, add its URL here
-  // Popular abstract art alternative:
-  'SDArt_Complete_Edition.safetensors': 'https://huggingface.co/Guizmus/SDArt_Complete_Edition/resolve/main/SDArt_Complete_Edition.safetensors',
+  // SDArt_Complete_Edition - URL may be incorrect or require authentication
+  // 'SDArt_Complete_Edition.safetensors': 'https://huggingface.co/Guizmus/SDArt_Complete_Edition/resolve/main/SDArt_Complete_Edition.safetensors',
 };
 
 /**
