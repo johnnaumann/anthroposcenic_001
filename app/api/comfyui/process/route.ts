@@ -2,7 +2,9 @@ import { NextRequest } from 'next/server';
 import { readFile, copyFile, mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability, prepareImageForComfyUI } from '@/lib/comfyui';
+import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability } from '@/lib/comfyui';
+import { startComfyUI } from '@/lib/comfyui-startup';
+import { ensureCheckpoint } from '@/lib/model-downloader';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
 
@@ -45,55 +47,117 @@ export async function POST(request: NextRequest) {
   // Process asynchronously
   (async () => {
     try {
-      // Check ComfyUI availability
-      const isAvailable = await checkComfyUIAvailability();
-      if (!isAvailable) {
-        sendStreamError(controller, 'ComfyUI service is not available');
-        return;
-      }
-
       const body: ComfyUIProcessRequest = await request.json();
-      const { imageId, description, workflow: customWorkflow } = body;
+      const { imageId, config, workflow: customWorkflow, useImage = true, width = 1024, height = 1024 } = body;
 
-      if (!imageId || !description) {
-        sendStreamError(controller, 'Image ID and description are required');
+      if (!config) {
+        sendStreamError(controller, 'Config is required');
         return;
       }
 
-      // Find the image file
-      const imageFile = await findImageFile(imageId);
-      if (!imageFile) {
-        sendStreamError(controller, 'Image not found');
+      if (!config.description || !config.checkpoint) {
+        sendStreamError(controller, 'Config must include description and checkpoint');
         return;
       }
 
-      // Prepare image for ComfyUI (copy to input directory if needed)
+      // If useImage is true, imageId is required
+      if (useImage && !imageId) {
+        sendStreamError(controller, 'Image ID is required when using image-to-image mode');
+        return;
+      }
+
+      // Start ComfyUI if not running
       sendStreamMessage(controller, {
         type: 'status',
-        data: 'Preparing image for ComfyUI...',
+        data: 'Starting ComfyUI...',
       });
 
-      let comfyImageFilename: string;
-      let imageBase64: string;
-      try {
-        // Try to copy image to ComfyUI input directory
-        const comfyInputDir = join(process.cwd(), 'comfyui', 'input');
-        await mkdir(comfyInputDir, { recursive: true });
-        
-        const imageBuffer = await readFile(imageFile.path);
-        imageBase64 = imageBuffer.toString('base64');
-        const extension = imageFile.path.split('.').pop() || 'png';
-        const filename = `${imageId}.${extension}`;
-        const comfyImagePath = join(comfyInputDir, filename);
-        
-        await copyFile(imageFile.path, comfyImagePath);
-        comfyImageFilename = filename;
-      } catch (error) {
-        console.warn('Failed to copy image to ComfyUI input, using filename:', error);
-        // Fallback: use just the filename (assumes image is accessible)
-        const imageBuffer = await readFile(imageFile.path);
-        imageBase64 = imageBuffer.toString('base64');
-        comfyImageFilename = imageFile.path.split('/').pop() || `${imageId}.png`;
+      const comfyuiReady = await startComfyUI();
+      if (!comfyuiReady) {
+        sendStreamError(controller, 'Failed to start ComfyUI. Please ensure ComfyUI is set up: npm run comfyui:setup');
+        return;
+      }
+
+      // Ensure checkpoint model is available
+      sendStreamMessage(controller, {
+        type: 'status',
+        data: `Checking for model: ${config.checkpoint}...`,
+      });
+      console.log(`[ComfyUI Process] Checking for model: ${config.checkpoint}`);
+
+      const checkpointReady = await ensureCheckpoint(config.checkpoint, (progress) => {
+        // Progress can be a percentage (0-100) or bytes downloaded
+        if (typeof progress === 'number' && progress <= 100) {
+          const progressPercent = Math.round(progress);
+          sendStreamMessage(controller, {
+            type: 'status',
+            data: `Downloading model: ${progressPercent}%`,
+          });
+          console.log(`[ComfyUI Process] Download progress: ${progressPercent}%`);
+        } else {
+          // Bytes downloaded (when total size unknown)
+          const mb = ((progress as number) / (1024 * 1024)).toFixed(2);
+          sendStreamMessage(controller, {
+            type: 'status',
+            data: `Downloading model: ${mb} MB downloaded...`,
+          });
+          console.log(`[ComfyUI Process] Download progress: ${mb} MB`);
+        }
+      });
+
+      if (!checkpointReady) {
+        const errorMsg = `Model ${config.checkpoint} is not available and could not be downloaded automatically. Please download it manually to: comfyui/models/checkpoints/`;
+        console.error(`[ComfyUI Process] ${errorMsg}`);
+        sendStreamError(controller, errorMsg);
+        return;
+      }
+      
+      console.log(`[ComfyUI Process] ✅ Model ready: ${config.checkpoint}`);
+      console.log(`[ComfyUI Process] Mode: ${useImage ? 'img2img' : 'txt2img'}`);
+
+      let comfyImageFilename: string | null = null;
+      let imageBase64: string | null = null;
+
+      // Only prepare image if using img2img mode
+      if (useImage && imageId) {
+        // Find the image file
+        const imageFile = await findImageFile(imageId);
+        if (!imageFile) {
+          sendStreamError(controller, 'Image not found');
+          return;
+        }
+
+        // Prepare image for ComfyUI (copy to input directory if needed)
+        sendStreamMessage(controller, {
+          type: 'status',
+          data: 'Preparing image for ComfyUI...',
+        });
+
+        try {
+          // Try to copy image to ComfyUI input directory
+          const comfyInputDir = join(process.cwd(), 'comfyui', 'input');
+          await mkdir(comfyInputDir, { recursive: true });
+          
+          const imageBuffer = await readFile(imageFile.path);
+          imageBase64 = imageBuffer.toString('base64');
+          const extension = imageFile.path.split('.').pop() || 'png';
+          const filename = `${imageId}.${extension}`;
+          const comfyImagePath = join(comfyInputDir, filename);
+          
+          await copyFile(imageFile.path, comfyImagePath);
+          comfyImageFilename = filename;
+        } catch (error) {
+          console.warn('Failed to copy image to ComfyUI input, using filename:', error);
+          // Fallback: use just the filename (assumes image is accessible)
+          const imageBuffer = await readFile(imageFile.path);
+          imageBase64 = imageBuffer.toString('base64');
+          comfyImageFilename = imageFile.path.split('/').pop() || `${imageId}.png`;
+        }
+      } else {
+        sendStreamMessage(controller, {
+          type: 'status',
+          data: 'Using text-to-image mode (no input image)...',
+        });
       }
 
       // Save description and base64 image to exports folder for git tracking
@@ -108,16 +172,25 @@ export async function POST(request: NextRequest) {
         // Save description
         await writeFile(
           join(exportDir, 'description.txt'),
-          description,
+          config.description,
           'utf-8'
         );
         
-        // Save base64 image
+        // Save config JSON
         await writeFile(
-          join(exportDir, 'image.base64.txt'),
-          imageBase64,
+          join(exportDir, 'config.json'),
+          JSON.stringify(config, null, 2),
           'utf-8'
         );
+        
+        // Save base64 image (if available)
+        if (imageBase64) {
+          await writeFile(
+            join(exportDir, 'image.base64.txt'),
+            imageBase64,
+            'utf-8'
+          );
+        }
         
         // Save metadata JSON
         await writeFile(
@@ -125,7 +198,7 @@ export async function POST(request: NextRequest) {
           JSON.stringify({
             imageId,
             timestamp: new Date().toISOString(),
-            description,
+            config,
             imageMimeType: imageFile.mimeType,
             comfyImageFilename,
           }, null, 2),
@@ -138,30 +211,22 @@ export async function POST(request: NextRequest) {
         // Don't fail the request if export saving fails
       }
 
-      // Create or use custom workflow
-      // The workflow is built programmatically with all nodes and connections
-      // Images are now pre-compressed at upload, so no need for resize node
-      // Use creativity settings from environment or defaults
-      // Default to 'vivid' for vivid, high-quality images
-      const creativity = (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid') || 'vivid';
-      const customSteps = process.env.COMFYUI_STEPS ? parseInt(process.env.COMFYUI_STEPS, 10) : undefined;
-      const customCfgScale = process.env.COMFYUI_CFG_SCALE ? parseFloat(process.env.COMFYUI_CFG_SCALE) : undefined;
-      const customDenoise = process.env.COMFYUI_DENOISE ? parseFloat(process.env.COMFYUI_DENOISE) : undefined;
-      const customSampler = process.env.COMFYUI_SAMPLER || undefined;
-      const customScheduler = process.env.COMFYUI_SCHEDULER || undefined;
-      const customCheckpoint = process.env.COMFYUI_CHECKPOINT || undefined;
-      
+      // Create workflow using config from JSON
+      // Use settings from the config object provided by Ollama
       const workflow = customWorkflow
         ? JSON.parse(customWorkflow)
-        : await createComfyUIWorkflow(comfyImageFilename, description, {
-            checkpoint: customCheckpoint,
-            creativity,
-            steps: customSteps,
-            cfgScale: customCfgScale,
-            denoiseStrength: customDenoise,
-            sampler: customSampler,
-            scheduler: customScheduler,
+        : await createComfyUIWorkflow(comfyImageFilename, config.description, {
+            checkpoint: config.checkpoint,
+            steps: config.steps,
+            cfgScale: config.cfgScale,
+            denoiseStrength: config.denoiseStrength,
+            sampler: config.sampler,
+            scheduler: config.scheduler,
+            negativePrompt: config.negativePrompt,
             useImageResize: false, // Images are pre-compressed at upload, no resize needed
+            useImage: useImage, // Whether to use img2img or txt2img
+            width: width,
+            height: height,
           });
 
       // Send initial status

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { streamOllamaResponse, imageToBase64, generateDescriptionPrompt } from '@/lib/ollama';
+import { streamOllamaResponse, imageToBase64 } from '@/lib/ollama';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { DescribeRequest } from '@/types';
 
@@ -63,21 +63,38 @@ export async function POST(request: NextRequest) {
       const imageBuffer = await readFile(imageFile.path);
       const imageBase64 = imageToBase64(imageBuffer, imageFile.mimeType);
 
-      // Generate description prompt
-      const prompt = generateDescriptionPrompt();
-
-      // Stream response from Ollama
-      let fullDescription = '';
+      // System prompt is in the modelfile - use minimal trigger (not an instruction)
+      // The modelfile system prompt contains all instructions for JSON generation
+      // Use the custom model if no model specified, fallback to default from config
+      let modelToUse = model;
+      if (!modelToUse || modelToUse === 'default') {
+        modelToUse = process.env.OLLAMA_MODEL || 'anthroposcenic-describe:latest';
+      }
+      
+      console.log('[Describe] Using model:', modelToUse);
+      console.log('[Describe] Model from request:', model || 'not provided (will use default)');
+      console.log('[Describe] OLLAMA_MODEL env:', process.env.OLLAMA_MODEL || 'not set');
+      console.log('[Describe] Final model selected:', modelToUse);
+      
+      let fullResponse = '';
       let streamOpen = true;
       
       try {
+        let tokenCount = 0;
+        
+        // System prompt in modelfile handles instructions - just use minimal trigger
+        const prompt = 'Describe';
+        
+        console.log('[Describe] Sending request to Ollama');
+        
         for await (const token of streamOllamaResponse({
-          model,
-          prompt,
+          model: modelToUse,
+          prompt: prompt,
           images: [imageBase64],
           stream: true,
         })) {
-          fullDescription += token;
+          tokenCount++;
+          fullResponse += token;
           // Only send if stream is still open
           if (streamOpen) {
             streamOpen = sendStreamMessage(controller, {
@@ -92,13 +109,42 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Send completion message only if stream is still open
-        if (streamOpen) {
-          sendStreamMessage(controller, {
+        console.log('[Describe] Stream completed. Token count:', tokenCount, 'Response length:', fullResponse.length);
+
+        // Check if we got any response
+        if (!fullResponse || fullResponse.trim().length === 0) {
+          throw new Error('Empty response from Ollama. The model may not be responding correctly. Please ensure the model is created and Ollama is running.');
+        }
+
+        // Clean the response - remove any markdown or extra formatting
+        let description = fullResponse.trim();
+        description = description.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
+        description = description.replace(/^#{1,6}\s+/gm, '');
+        description = description.trim();
+
+        // Send completion message with description text
+        if (streamOpen && description) {
+          console.log('[Describe] Sending done message with description');
+          const sent = sendStreamMessage(controller, {
             type: 'done',
-            data: fullDescription,
+            data: description,
           });
-          closeStream(controller);
+          if (sent) {
+            closeStream(controller);
+            console.log('[Describe] Stream closed successfully');
+          } else {
+            console.warn('[Describe] Failed to send done message - stream already closed');
+          }
+        } else {
+          if (!streamOpen) {
+            console.warn('[Describe] Cannot send completion - stream already closed');
+          }
+          if (!description) {
+            console.error('[Describe] Cannot send completion - no description received');
+            if (streamOpen) {
+              sendStreamError(controller, 'Failed to generate description. Please check server logs for details.');
+            }
+          }
         }
       } catch (streamError) {
         // If streaming fails but stream is still open, send error

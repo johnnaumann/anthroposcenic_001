@@ -502,7 +502,7 @@ export async function findLatestOutputImage(
  * @param options - Optional workflow configuration
  */
 export async function createComfyUIWorkflow(
-  imageFilename: string,
+  imageFilename: string | null, // null for text-to-image
   description: string,
   options: {
     checkpoint?: string; // Model checkpoint name (default: first available)
@@ -517,6 +517,9 @@ export async function createComfyUIWorkflow(
     useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
     negativePrompt?: string; // Custom negative prompt (default: creative variation-focused)
     creativity?: 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid'; // Creativity preset (quality/vivid modes preserve detail)
+    useImage?: boolean; // Whether to use img2img (true) or txt2img (false)
+    width?: number; // Image width for txt2img (default: 1024)
+    height?: number; // Image height for txt2img (default: 1024)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   // Get creativity preset or use individual parameters
@@ -626,9 +629,14 @@ export async function createComfyUIWorkflow(
     sampler = await getValidSampler(requestedSampler);
   }
 
+  // Determine if using image (img2img) or text-to-image (txt2img)
+  const useImage = options.useImage !== false && imageFilename !== null;
+  const txt2imgWidth = options.width || maxWidth;
+  const txt2imgHeight = options.height || maxHeight;
+
   // Generate unique node IDs
-  // Images are now compressed at upload, so resize node is optional
-  const nodeIds = {
+  // Different node structures for img2img vs txt2img
+  const nodeIds = useImage ? {
     loadImage: '1',
     resizeImage: '2', // Optional - only used if useImageResize is true
     loadCheckpoint: '3',
@@ -638,37 +646,56 @@ export async function createComfyUIWorkflow(
     kSampler: '7',
     vaeDecode: '8',
     saveImage: '9',
+  } : {
+    emptyLatentImage: '1',
+    loadCheckpoint: '2',
+    clipTextEncode: '3',
+    clipTextEncodeNegative: '4',
+    kSampler: '5',
+    vaeDecode: '6',
+    saveImage: '7',
   };
 
-  // Determine image source (resized or direct)
+  // Determine image source (resized or direct) for img2img
   const imageSource = useImageResize ? nodeIds.resizeImage : nodeIds.loadImage;
 
   // Build the workflow
   const workflow: ComfyUIWorkflow = {
-    // Node 1: Load Image
-    [nodeIds.loadImage]: {
-      class_type: 'LoadImage',
-      inputs: {
-        image: imageFilename,
-      },
-      _meta: { title: 'Load Image' },
-    },
-
-    // Node 2: Resize Image (Optional - only if useImageResize is true)
-    // Images are now pre-compressed at upload, so this is usually not needed
-    ...(useImageResize ? {
-      [nodeIds.resizeImage]: {
-        class_type: 'ImageScale',
+    // For img2img: Load Image
+    // For txt2img: Empty Latent Image
+    ...(useImage ? {
+      [nodeIds.loadImage]: {
+        class_type: 'LoadImage',
         inputs: {
-          image: [nodeIds.loadImage, 0],
-          upscale_method: 'lanczos',
-          crop: 'disabled',
-          width: maxWidth,
-          height: maxHeight,
+          image: imageFilename!,
         },
-        _meta: { title: 'Resize Image (Optional)' },
+        _meta: { title: 'Load Image' },
       },
-    } : {}),
+      // Node 2: Resize Image (Optional - only if useImageResize is true)
+      ...(useImageResize ? {
+        [nodeIds.resizeImage]: {
+          class_type: 'ImageScale',
+          inputs: {
+            image: [nodeIds.loadImage, 0],
+            upscale_method: 'lanczos',
+            crop: 'disabled',
+            width: maxWidth,
+            height: maxHeight,
+          },
+          _meta: { title: 'Resize Image (Optional)' },
+        },
+      } : {}),
+    } : {
+      [nodeIds.emptyLatentImage]: {
+        class_type: 'EmptyLatentImage',
+        inputs: {
+          width: txt2imgWidth,
+          height: txt2imgHeight,
+          batch_size: 1,
+        },
+        _meta: { title: 'Empty Latent Image (txt2img)' },
+      },
+    }),
 
     // Node 3: Load Checkpoint (Model)
     [nodeIds.loadCheckpoint]: {
@@ -699,15 +726,18 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'CLIP Text Encode (Negative)' },
     },
 
-    // Node 6: VAE Encode (Image to Latent)
-    [nodeIds.vaeEncode]: {
-      class_type: 'VAEEncode',
-      inputs: {
-        pixels: [imageSource, 0], // Connect to image source (resized if enabled, otherwise direct)
-        vae: [nodeIds.loadCheckpoint, 2],
+    // Node 6: VAE Encode (Image to Latent) - Only for img2img
+    // For txt2img, we use EmptyLatentImage directly
+    ...(useImage ? {
+      [nodeIds.vaeEncode]: {
+        class_type: 'VAEEncode',
+        inputs: {
+          pixels: [imageSource, 0], // Connect to image source (resized if enabled, otherwise direct)
+          vae: [nodeIds.loadCheckpoint, 2],
+        },
+        _meta: { title: 'VAE Encode' },
       },
-      _meta: { title: 'VAE Encode' },
-    },
+    } : {}),
 
     // Node 7: KSampler (Image Generation/Processing)
     [nodeIds.kSampler]: {
@@ -718,11 +748,11 @@ export async function createComfyUIWorkflow(
         cfg: cfgScale,
         sampler_name: sampler,
         scheduler: scheduler,
-        denoise: denoiseStrength,
+        denoise: useImage ? denoiseStrength : 1.0, // Full denoise for txt2img
         positive: [nodeIds.clipTextEncode, 0],
         negative: [nodeIds.clipTextEncodeNegative, 0],
         model: [nodeIds.loadCheckpoint, 0],
-        latent_image: [nodeIds.vaeEncode, 0],
+        latent_image: useImage ? [nodeIds.vaeEncode, 0] : [nodeIds.emptyLatentImage, 0],
       },
       _meta: { title: 'KSampler' },
     },

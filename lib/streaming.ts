@@ -5,6 +5,7 @@
 export interface StreamMessage {
   type: string;
   data?: unknown;
+  config?: unknown; // For ComfyUI config in describe route
   error?: string;
 }
 

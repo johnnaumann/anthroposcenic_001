@@ -154,19 +154,20 @@ cd comfyui/models/checkpoints
 curl -L -o sd-v1-5.safetensors https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
 ```
 
-### 6. Start Everything
+### 6. Start Application
 
 ```bash
 npm run dev
 ```
 
-This starts all services concurrently and opens your browser:
+This starts Ollama and Next.js, then opens your browser:
 
 | Service | URL | Status |
 |---------|-----|--------|
 | Next.js | http://localhost:3000 | App |
 | Ollama | http://localhost:11434 | AI |
-| ComfyUI | http://localhost:8188 | Image Gen |
+
+**Note:** ComfyUI starts automatically when you process an image (after description is generated).
 
 ---
 
@@ -181,10 +182,12 @@ sequenceDiagram
     
     U->>N: Upload Image
     N->>N: Store locally
-    N->>O: Send image for description
-    O-->>N: Stream description tokens
-    N-->>U: Display streaming text
-    N->>C: Send image + description
+    N->>O: Send image for analysis
+    O-->>N: Stream JSON (description + config)
+    N-->>U: Display description & config
+    N->>N: Start ComfyUI (if needed)
+    N->>N: Download model (if missing)
+    N->>C: Send image + config
     C->>C: Process (img2img)
     C-->>N: Stream progress
     N-->>U: Display result
@@ -198,17 +201,41 @@ sequenceDiagram
 ### Pipeline Steps
 
 1. **Upload** — Image saved to `./uploads/`
-2. **Describe** — Ollama vision model analyzes image, streams description
-3. **Process** — ComfyUI runs img2img workflow with description as prompt
-4. **Result** — Processed image streamed back to browser
+2. **Analyze** — Ollama vision model analyzes image and generates:
+   - Detailed visual description
+   - Optimal ComfyUI configuration (model, sampler, steps, CFG, denoise, etc.)
+   - Returns JSON with all settings
+3. **Start ComfyUI** — ComfyUI starts automatically with the specified configuration
+4. **Download Models** — If the specified model isn't installed, it downloads automatically
+5. **Process** — ComfyUI runs img2img workflow using the generated configuration
+6. **Result** — Processed image streamed back to browser
 
 ---
 
 ## Configuration
 
-### Environment Variables
+### How It Works
 
-Create `.env.local`:
+The application uses **AI-generated configuration** from Ollama. When you upload an image:
+
+1. Ollama analyzes the image and generates a JSON response containing:
+   - **description**: Detailed visual description
+   - **checkpoint**: Recommended model (e.g., `Deliberate_v2.safetensors`)
+   - **sampler**: Optimal sampler (e.g., `dpmpp_2m_karras`)
+   - **scheduler**: Scheduler type (e.g., `normal`)
+   - **steps**: Number of sampling steps (e.g., 32)
+   - **cfgScale**: CFG scale value (e.g., 7.5)
+   - **denoiseStrength**: Denoise strength (e.g., 0.45)
+   - **negativePrompt**: Quality-focused negative prompt
+
+2. The application automatically:
+   - Starts ComfyUI if not running
+   - Downloads the specified model if missing
+   - Uses the generated configuration for processing
+
+### Environment Variables (Optional Overrides)
+
+You can still override settings in `.env.local` if needed:
 
 ```env
 # Ollama (Local)
@@ -220,26 +247,20 @@ COMFYUI_HOST=http://localhost:8188
 # Memory optimization: --lowvram, --novram, --cpu, or --normalvram (default)
 # COMFYUI_MEMORY_MODE=--lowvram
 
-# ComfyUI Creativity Settings (for generating interesting variations)
-# Preset: low, medium, high, extreme, quality, quality-high, vivid (default)
-# - vivid: Vivid, visually arresting images with good detail preservation (balanced quality/memory)
-# - quality/quality-high: Preserve detail from original, higher steps, lower denoise
-# - high/extreme: More variation from input image, less replication
-COMFYUI_CREATIVITY=vivid
+# Note: Configuration is now AI-generated from Ollama based on image analysis
+# These environment variables are optional overrides (not required)
 
-# Advanced: Override individual parameters (optional)
-# For vivid preset, recommended overrides:
-# COMFYUI_STEPS=35              # Sampling steps (30-40 for vivid, higher = better quality, slower)
-# COMFYUI_CFG_SCALE=7.5          # CFG scale (7-8 for photorealistic, avoid >9 to prevent artifacts)
-# COMFYUI_DENOISE=0.45            # Denoise strength (0.4-0.5 for vivid, lower = preserve detail, higher = more variation)
-# COMFYUI_SAMPLER=dpmpp_2m_karras # Sampler: euler, dpmpp_2m, dpmpp_2m_karras, euler_a
-# COMFYUI_SCHEDULER=karras        # Scheduler: normal, karras, exponential, simple
+# ComfyUI Creativity Settings (fallback if Ollama doesn't provide config)
+# Preset: low, medium, high, extreme, quality, quality-high, vivid
+# COMFYUI_CREATIVITY=vivid
 
-# ComfyUI Checkpoint Model (optional)
-# Specify which diffusion model to use for processing
-# Default: First available checkpoint in comfyui/models/checkpoints/
-# Examples: DreamShaper_8.safetensors, Deliberate_v2.safetensors, AbyssOrangeMix3.safetensors
-# COMFYUI_CHECKPOINT=DreamShaper_8.safetensors
+# Advanced: Override individual parameters (optional, only used as fallback)
+# COMFYUI_STEPS=35              # Sampling steps
+# COMFYUI_CFG_SCALE=7.5          # CFG scale
+# COMFYUI_DENOISE=0.45            # Denoise strength
+# COMFYUI_SAMPLER=dpmpp_2m_karras # Sampler
+# COMFYUI_SCHEDULER=karras        # Scheduler
+# COMFYUI_CHECKPOINT=Deliberate_v2.safetensors # Model checkpoint
 
 # Storage
 UPLOAD_DIR=./uploads
@@ -276,14 +297,21 @@ Models are defined in `config/models.json`:
 
 The application uses a custom Ollama model (`anthroposcenic-describe:latest`) created from `config/ollama-modelfile`. This modelfile includes:
 
-- **System Prompt**: Optimized for detailed image descriptions for AI image generation
+- **System Prompt**: Optimized to generate JSON with image description AND ComfyUI configuration
 - **Base Model**: `llava:7b` (fast and reliable)
-- **Parameters**: Temperature 0.7, top_p 0.9, top_k 40
+- **Parameters**: Temperature 0.5 (lower for more structured JSON), top_p 0.9, top_k 40
+- **Output Format**: JSON with `description`, `checkpoint`, `sampler`, `scheduler`, `steps`, `cfgScale`, `denoiseStrength`, `negativePrompt`
 
-**Create/Update the custom model:**
+**Create/Update the custom models:**
 ```bash
+# Create/update the describe model (generates JSON with description + ComfyUI config)
 npm run ollama:modelfile
+
+# Create/update the transform model (transforms descriptions using scientific analogies)
+npm run ollama:modelfile:transform
 ```
+
+**CRITICAL:** After updating ANY modelfile, you MUST recreate the model for changes to take effect. The system prompts in modelfiles are baked into the model at creation time.
 
 **Install all models:**
 ```bash
@@ -445,9 +473,9 @@ createComfyUIWorkflow(imageFilename, description, {
 | `/api/upload` | POST | Upload image, returns `imageId` |
 | `/api/describe` | POST | Stream description from Ollama |
 | `/api/comfyui/process` | POST | Process with ComfyUI |
+| `/api/comfyui/config` | GET | Get available ComfyUI configuration options (models, samplers, schedulers) |
 | `/api/comfyui/samplers` | GET | List available ComfyUI samplers |
 | `/api/images/[id]` | GET | Retrieve uploaded image |
-| `/api/models` | GET | List available models |
 
 ---
 
@@ -519,9 +547,20 @@ cd comfyui
 ./venv/bin/pip install -r requirements.txt
 ```
 
-### Adding More ComfyUI Samplers
+### Installing All ComfyUI Samplers
 
-ComfyUI comes with built-in samplers, but you can install additional samplers via custom nodes:
+ComfyUI comes with built-in samplers, but you can install comprehensive sampler packages to ensure all suggested samplers are available:
+
+**Install All Sampler Packages (Recommended):**
+```bash
+npm run comfyui:install-all-samplers
+```
+
+This installs multiple sampler packages:
+- **ComfyUI Extra Samplers** - Primary sampler extension with many additional samplers
+- **ComfyUI HybridSamplers** - Hybrid sampler variants
+- **ComfyUI Switch Samplers** - Dynamic sampler switching capabilities
+- **ComfyUI Tiled KSampler** - Tiled sampling for large images (optional)
 
 **Check Current Samplers:**
 ```bash
@@ -529,23 +568,15 @@ npm run comfyui:samplers
 # Or via API: curl http://localhost:3000/api/comfyui/samplers
 ```
 
-**Install ComfyUI Extra Samplers (Recommended):**
+**Install Only Extra Samplers (Alternative):**
 ```bash
 npm run comfyui:install-extra-samplers
 ```
 
-This installs the [ComfyUI Extra Samplers](https://github.com/Clybius/ComfyUI-Extra-Samplers) plugin which adds many additional samplers like:
-- `dpmpp_2m_sde`
-- `dpmpp_2m_sde_gpu`
-- `dpmpp_3m_sde`
-- `dpmpp_3m_sde_gpu`
-- `euler_ancestral`
-- And many more...
-
 **After Installation:**
-1. Restart ComfyUI: `npm run dev:comfyui`
-2. Check available samplers again: `npm run comfyui:samplers`
-3. The new samplers will be automatically detected and available for use
+1. Restart ComfyUI to load new samplers (or it will auto-load on next request)
+2. Check available samplers: `npm run comfyui:samplers`
+3. All new samplers will be automatically detected when Ollama suggests them
 
 ### Installing Creative/Artistic Diffusion Models
 

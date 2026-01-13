@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Loader2 } from 'lucide-react';
-
 interface DescriptionStreamProps {
   imageId: string | null;
   onDescriptionComplete: (description: string) => void;
@@ -65,7 +64,14 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       while (true) {
         const { done, value } = await reader.read();
         
-        if (done) break;
+        if (done) {
+          console.log('[DescriptionStream] Stream ended');
+          // If stream ended but we didn't get a done message, check if we have accumulated description
+          if (isStreaming && description && !config) {
+            console.warn('[DescriptionStream] Stream ended without done message, but we have description text');
+          }
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -78,23 +84,53 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
               
               if (data.type === 'token' && data.data) {
                 setDescription(prev => prev + data.data);
-              } else if (data.type === 'done' && data.data) {
-                setDescription(data.data);
-                onDescriptionComplete(data.data);
-                setIsStreaming(false);
-                return;
+              } else if (data.type === 'done') {
+                console.log('[DescriptionStream] Received done message');
+                // data.data should be the description string
+                const finalDescription = typeof data.data === 'string' ? data.data : description;
+                if (finalDescription && finalDescription.trim()) {
+                  setDescription(finalDescription);
+                  onDescriptionComplete(finalDescription);
+                  setIsStreaming(false);
+                  return;
+                } else {
+                  throw new Error('Invalid description format received');
+                }
               } else if (data.type === 'error') {
+                console.error('[DescriptionStream] Error received:', data.error);
                 throw new Error(data.error || 'Unknown error');
               }
             } catch (e) {
-              // Skip invalid JSON
+              // Log parsing errors for debugging
+              if (e instanceof SyntaxError) {
+                console.warn('[DescriptionStream] Failed to parse SSE line:', line.substring(0, 100));
+              } else {
+                console.error('[DescriptionStream] Error processing message:', e);
+                throw e;
+              }
             }
           }
         }
       }
+      
+      // If we reach here and still streaming, the stream ended without a done message
+      if (isStreaming) {
+        console.warn('[DescriptionStream] Stream ended without done message');
+        if (description && description.length > 0) {
+          console.warn('[DescriptionStream] We have description text but no config. This suggests JSON parsing failed on the server.');
+          setError('Received description but failed to parse configuration. Check server logs. You may need to recreate the model: npm run ollama:modelfile');
+        } else {
+          setError('Stream ended without response. The model may not be responding. Please ensure the model is created: npm run ollama:modelfile');
+        }
+        setIsStreaming(false);
+      }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('[DescriptionStream] Error:', err);
         setError(err.message);
+        setIsStreaming(false);
+      } else if (err instanceof Error && err.name === 'AbortError') {
+        console.log('[DescriptionStream] Request aborted');
         setIsStreaming(false);
       }
     }
@@ -107,9 +143,9 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Image Description</CardTitle>
+        <CardTitle>Image Analysis & Configuration</CardTitle>
         <CardDescription>
-          AI-generated description streaming from Ollama
+          AI-generated description and ComfyUI configuration from Ollama
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -117,7 +153,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={isStreaming ? 'Generating description...' : 'Description will appear here'}
+            placeholder={isStreaming ? 'Generating description and configuration...' : 'Description and configuration will appear here'}
             className="min-h-[200px] font-mono text-sm"
             readOnly={isStreaming}
           />
@@ -129,7 +165,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
         </div>
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            {isStreaming ? 'Streaming...' : description ? 'Description complete' : 'Waiting for image'}
+            {isStreaming ? 'Streaming...' : description ? 'Description ready' : 'Waiting for image'}
           </div>
           <div className="flex gap-2">
             {description && (

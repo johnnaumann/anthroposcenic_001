@@ -3,15 +3,13 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle2, Circle, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface PipelineStatusProps {
-  step: 'upload' | 'describe' | 'process' | 'complete';
-  error?: string;
-}
+import { PipelineStatusProps } from '@/types';
 
 const steps = [
   { id: 'upload', label: 'Upload Image' },
-  { id: 'describe', label: 'Generate Description' },
+  { id: 'describe', label: 'Describe Image' },
+  { id: 'edit', label: 'Edit Description' },
+  { id: 'configure', label: 'Configure Settings' },
   { id: 'process', label: 'Process with ComfyUI' },
   { id: 'complete', label: 'Complete' },
 ] as const;

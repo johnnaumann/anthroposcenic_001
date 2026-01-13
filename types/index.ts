@@ -13,16 +13,31 @@ export interface DescribeRequest {
   model?: string;
 }
 
+export interface ComfyUIConfig {
+  description: string;
+  checkpoint: string;
+  sampler: string;
+  scheduler: string;
+  steps: number;
+  cfgScale: number;
+  denoiseStrength: number;
+  negativePrompt: string;
+}
+
 export interface DescribeStreamChunk {
   type: 'token' | 'thinking' | 'done' | 'error';
   content?: string;
+  config?: ComfyUIConfig;
   error?: string;
 }
 
 export interface ComfyUIProcessRequest {
-  imageId: string;
-  description: string;
+  imageId?: string; // Optional - if not provided, uses text-to-image
+  config: ComfyUIConfig;
   workflow?: string;
+  useImage?: boolean; // Whether to use the uploaded image (img2img) or generate from scratch (txt2img)
+  width?: number; // Image width for txt2img (default: 1024)
+  height?: number; // Image height for txt2img (default: 1024)
 }
 
 export interface ComfyUIStreamChunk {
@@ -43,19 +58,19 @@ export interface ImageUploadZoneProps {
 
 export interface DescriptionStreamProps {
   imageId: string | null;
-  onDescriptionComplete: (description: string) => void;
+  onDescriptionComplete: (config: ComfyUIConfig) => void;
   disabled?: boolean;
 }
 
 export interface ComfyUIProgressProps {
   imageId: string | null;
-  description: string | null;
-  onProcessingComplete: (result: ComfyUIStreamChunk) => void;
+  config: ComfyUIConfig | null;
+  onProcessingComplete: (imageUrl: string) => void;
   disabled?: boolean;
 }
 
 export interface PipelineStatusProps {
-  step: 'upload' | 'describe' | 'process' | 'complete';
+  step: 'upload' | 'describe' | 'edit' | 'configure' | 'process' | 'complete';
   error?: string;
 }
 

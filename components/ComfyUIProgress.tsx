@@ -5,35 +5,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Image as ImageIcon } from 'lucide-react';
+import { ComfyUIConfig } from '@/types';
 
 interface ComfyUIProgressProps {
   imageId: string | null;
-  description: string | null;
+  config: ComfyUIConfig | null;
   onProcessingComplete: (imageUrl: string) => void;
   disabled?: boolean;
 }
 
-export function ComfyUIProgress({ imageId, description, onProcessingComplete, disabled }: ComfyUIProgressProps) {
+export function ComfyUIProgress({ imageId, config, onProcessingComplete, disabled }: ComfyUIProgressProps) {
   const [status, setStatus] = useState<string>('');
   const [progress, setProgress] = useState(0);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useImage, setUseImage] = useState<boolean>(true); // Default to img2img if image available
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (imageId && description && !disabled) {
-      startProcessing();
-    } else {
-      reset();
+    // Set default useImage based on whether imageId is available
+    if (imageId) {
+      setUseImage(true);
     }
+  }, [imageId]);
+
+  useEffect(() => {
+    // Don't auto-start - wait for user to click process button
+    // if (imageId && config && !disabled) {
+    //   startProcessing();
+    // } else {
+    //   reset();
+    // }
 
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [imageId, description, disabled]);
+  }, [imageId, config, disabled]);
 
   const reset = () => {
     setStatus('');
@@ -44,12 +54,18 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
   };
 
   const startProcessing = async () => {
-    if (!imageId || !description) return;
+    if (!config) return;
+    
+    // If useImage is true, imageId is required
+    if (useImage && !imageId) {
+      setError('Image is required for image-to-image mode');
+      return;
+    }
 
     setIsProcessing(true);
     setError(null);
     setProgress(0);
-    setStatus('Initializing...');
+    setStatus(useImage ? 'Initializing ComfyUI with image...' : 'Initializing ComfyUI for text-to-image...');
 
     abortControllerRef.current = new AbortController();
 
@@ -57,7 +73,13 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
       const response = await fetch('/api/comfyui/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageId, description }),
+        body: JSON.stringify({ 
+          imageId: useImage ? imageId : undefined, 
+          config,
+          useImage: useImage,
+          width: 1024,
+          height: 1024,
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -90,7 +112,14 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
               console.log('[ComfyUIProgress] Received message:', data.type, data);
               
               if (data.type === 'status' && data.data) {
-                setStatus(data.data);
+                const statusText = String(data.data);
+                setStatus(statusText);
+                // If status indicates download progress, try to extract percentage
+                const downloadMatch = statusText.match(/Downloading model: (\d+)%/);
+                if (downloadMatch) {
+                  const percent = parseInt(downloadMatch[1], 10);
+                  setProgress(percent);
+                }
               } else if (data.type === 'progress' && typeof data.data === 'number') {
                 setProgress(data.data);
               } else if (data.type === 'image' && data.data) {
@@ -169,9 +198,40 @@ export function ComfyUIProgress({ imageId, description, onProcessingComplete, di
         )}
 
         {!isProcessing && !resultImage && !error && (
-          <div className="text-center py-8 text-muted-foreground">
-            <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>Waiting for image and description...</p>
+          <div className="space-y-4">
+            <div className="text-center py-4 text-muted-foreground">
+              <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>Ready to process</p>
+            </div>
+            
+            {imageId && (
+              <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useImage"
+                    checked={useImage}
+                    onChange={(e) => setUseImage(e.target.checked)}
+                    disabled={isProcessing}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="useImage" className="text-sm cursor-pointer">
+                    Use uploaded image (img2img)
+                  </label>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {useImage ? 'Will modify the uploaded image' : 'Will generate from description only'}
+                </div>
+              </div>
+            )}
+            
+            <button
+              onClick={startProcessing}
+              disabled={disabled || isProcessing || !config}
+              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {useImage ? 'Process Image' : 'Generate from Description'}
+            </button>
           </div>
         )}
 
