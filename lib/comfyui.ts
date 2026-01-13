@@ -1027,7 +1027,24 @@ export async function* pollComfyUIJob(
             (msg) => Array.isArray(msg) && (msg[0] === 'execution_error' || msg[0] === 'execution_interrupted')
           );
           console.error(`ComfyUI job ${promptId} failed:`, failureMsg);
-          throw new Error(`ComfyUI execution failed: ${JSON.stringify(failureMsg)}`);
+          
+          // Extract error message from execution_error format: ["execution_error", {exception_message: "...", ...}]
+          let errorMessage = `ComfyUI execution failed: ${JSON.stringify(failureMsg)}`;
+          if (Array.isArray(failureMsg) && failureMsg.length > 1 && typeof failureMsg[1] === 'object') {
+            const errorDetails = failureMsg[1] as { exception_message?: string; node_type?: string; ckpt_name?: string[] };
+            if (errorDetails.exception_message) {
+              errorMessage = errorDetails.exception_message;
+              // Add context about which node/model failed
+              if (errorDetails.node_type) {
+                errorMessage = `${errorDetails.node_type}: ${errorMessage}`;
+              }
+              if (errorDetails.ckpt_name && Array.isArray(errorDetails.ckpt_name) && errorDetails.ckpt_name.length > 0) {
+                errorMessage = `Model ${errorDetails.ckpt_name[0]}: ${errorMessage}`;
+              }
+            }
+          }
+          
+          throw new Error(errorMessage);
         }
         
         // Check for execution_success message (indicates completion)
@@ -1181,7 +1198,23 @@ export async function* pollComfyUIJob(
       attempts++;
     } catch (error) {
       console.error('Error polling ComfyUI job:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if this is a model corruption error and provide helpful guidance
+      const { isCorruptionError } = await import('@/lib/model-downloader');
+      if (isCorruptionError(errorMessage)) {
+        // Extract model name from error if possible
+        const modelMatch = errorMessage.match(/Model\s+([^\s:]+)/i) || 
+                          errorMessage.match(/ckpt_name.*?\[.*?['"]([^'"]+)['"]/i);
+        const modelName = modelMatch ? modelMatch[1] : 'the model file';
+        
+        errorMessage = `Model file "${modelName}" appears to be corrupted. The error suggests the safetensors file is invalid or incomplete.\n\n` +
+          `To fix this:\n` +
+          `1. Delete the corrupted file: comfyui/models/checkpoints/${modelName}\n` +
+          `2. The model will be automatically re-downloaded on the next attempt, or\n` +
+          `3. Download manually from Hugging Face or Civitai`;
+      }
+      
       yield { status: 'error', error: errorMessage };
       return;
     }

@@ -26,10 +26,13 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
     }
 
     return () => {
-      if (abortControllerRef.current) {
+      // Only abort if component is actually unmounting (not just re-rendering)
+      // Don't abort on every dependency change - let the stream complete
+      if (abortControllerRef.current && !imageId) {
         abortControllerRef.current.abort();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageId, disabled]);
 
   const startDescription = async () => {
@@ -117,12 +120,14 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       if (isStreaming) {
         console.warn('[DescriptionStream] Stream ended without done message');
         if (description && description.length > 0) {
-          console.warn('[DescriptionStream] We have description text but no config. This suggests JSON parsing failed on the server.');
-          setError('Received description but failed to parse configuration. Check server logs. You may need to recreate the model: npm run ollama:modelfile');
+          console.log('[DescriptionStream] We have description text, using it even without done message');
+          // Use the accumulated description even if done message wasn't received
+          onDescriptionComplete(description);
+          setIsStreaming(false);
         } else {
           setError('Stream ended without response. The model may not be responding. Please ensure the model is created: npm run ollama:modelfile');
+          setIsStreaming(false);
         }
-        setIsStreaming(false);
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {

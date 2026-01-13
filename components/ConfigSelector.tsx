@@ -46,9 +46,16 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         const data = await response.json();
         setConfigOptions(data);
         
-        // Set defaults
+        // Set defaults - prioritize DreamShaper_8 if available
         if (data.checkpoints.length > 0) {
-          setCheckpoint(data.checkpoints[0]);
+          const dreamshaperIndex = data.checkpoints.findIndex((cp: string) => 
+            cp.includes('DreamShaper') || cp === 'DreamShaper_8.safetensors'
+          );
+          if (dreamshaperIndex >= 0) {
+            setCheckpoint(data.checkpoints[dreamshaperIndex]);
+          } else {
+            setCheckpoint(data.checkpoints[0]);
+          }
         }
         if (data.samplers.length > 0) {
           setSampler(data.samplers[0]);

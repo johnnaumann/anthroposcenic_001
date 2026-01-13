@@ -2,7 +2,7 @@
  * Model downloader utility for ComfyUI checkpoints
  */
 
-import { existsSync, createWriteStream } from 'fs';
+import { existsSync, createWriteStream, statSync } from 'fs';
 import { join } from 'path';
 
 const CHECKPOINTS_DIR = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
@@ -10,7 +10,7 @@ const CHECKPOINTS_DIR = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
 // Model registry with download URLs
 const MODEL_REGISTRY: Record<string, string> = {
   'Deliberate_v2.safetensors': 'https://huggingface.co/XpucT/Deliberate/resolve/main/Deliberate_v2.safetensors',
-  'DreamShaper_8.safetensors': 'https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8.safetensors',
+  'DreamShaper_8.safetensors': 'https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors',
   'AbyssOrangeMix3.safetensors': 'https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AbyssOrangeMix3.safetensors',
   'anything-v5.0-pruned.safetensors': 'https://huggingface.co/andite/anything-v4.0/resolve/main/anything-v5.0-pruned.safetensors',
   'chilloutmix_NiPrunedFp32Fix.safetensors': 'https://huggingface.co/TASUKU2023/Chilloutmix/resolve/main/chilloutmix_NiPrunedFp32Fix.safetensors',
@@ -30,6 +30,44 @@ const MODEL_REGISTRY: Record<string, string> = {
 export function checkpointExists(checkpoint: string): boolean {
   const filePath = join(CHECKPOINTS_DIR, checkpoint);
   return existsSync(filePath);
+}
+
+/**
+ * Check if a checkpoint file appears to be valid
+ * This is a basic check - a file that exists and has reasonable size (> 1MB)
+ * A more thorough check would require loading the safetensors header, but that's expensive
+ */
+export function checkpointAppearsValid(checkpoint: string): boolean {
+  const filePath = join(CHECKPOINTS_DIR, checkpoint);
+  if (!existsSync(filePath)) {
+    return false;
+  }
+  
+  try {
+    const stats = statSync(filePath);
+    // Most checkpoint models are at least 1-2GB, but we'll accept anything > 1MB as potentially valid
+    // Very small files are likely corrupted or incomplete
+    return stats.size > 1024 * 1024; // > 1MB
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a checkpoint file is likely corrupted based on error message
+ */
+export function isCorruptionError(errorMessage: string): boolean {
+  const corruptionIndicators = [
+    'header too large',
+    'Error while deserializing header',
+    'safetensors_rust.SafetensorError',
+    'corrupted',
+    'invalid header',
+    'deserialization error',
+  ];
+  
+  const lowerMessage = errorMessage.toLowerCase();
+  return corruptionIndicators.some(indicator => lowerMessage.includes(indicator.toLowerCase()));
 }
 
 /**
@@ -203,13 +241,33 @@ export async function downloadCheckpoint(
 
 /**
  * Ensure a checkpoint is available, downloading if necessary
+ * Optionally force re-download if file appears corrupted
  */
 export async function ensureCheckpoint(
   checkpoint: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  forceRedownload = false
 ): Promise<boolean> {
   if (checkpointExists(checkpoint)) {
-    return true;
+    // If forcing re-download, delete existing file first
+    if (forceRedownload) {
+      console.log(`[ModelDownloader] Force re-download requested, removing existing file: ${checkpoint}`);
+      try {
+        const { unlink } = await import('fs/promises');
+        const filePath = join(CHECKPOINTS_DIR, checkpoint);
+        await unlink(filePath);
+      } catch (error) {
+        console.warn(`[ModelDownloader] Failed to remove existing file:`, error);
+      }
+    } else {
+      // Basic validation - check file size
+      if (checkpointAppearsValid(checkpoint)) {
+        return true;
+      } else {
+        console.warn(`[ModelDownloader] ⚠️  Checkpoint file exists but appears invalid (too small): ${checkpoint}`);
+        console.warn(`[ModelDownloader] File may be corrupted. Consider re-downloading.`);
+      }
+    }
   }
 
   const downloaded = await downloadCheckpoint(checkpoint, onProgress);

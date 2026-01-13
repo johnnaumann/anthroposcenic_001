@@ -34,11 +34,15 @@ async function findImageFile(imageId: string): Promise<{ path: string; mimeType:
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
-  let controller: ReadableStreamDefaultController<Uint8Array>;
+  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
 
   const stream = new ReadableStream({
     start(ctrl) {
       controller = ctrl;
+    },
+    cancel() {
+      console.log('[Describe] Stream cancelled by client');
+      controller = null;
     },
   });
 
@@ -97,14 +101,16 @@ export async function POST(request: NextRequest) {
           fullResponse += token;
           // Only send if stream is still open
           if (streamOpen) {
-            streamOpen = sendStreamMessage(controller, {
+            const wasSent = sendStreamMessage(controller, {
               type: 'token',
               data: token,
             });
-            // If stream closed, stop trying to send
-            if (!streamOpen) {
-              console.warn('[Describe] Stream closed during token streaming');
-              break;
+            // If stream closed, log but continue collecting tokens
+            // Don't break - we still want to process the full response
+            if (!wasSent) {
+              console.warn('[Describe] Stream closed during token streaming, but continuing to collect response');
+              streamOpen = false;
+              // Don't break - continue to collect the full response for completion message
             }
           }
         }
@@ -123,27 +129,26 @@ export async function POST(request: NextRequest) {
         description = description.trim();
 
         // Send completion message with description text
-        if (streamOpen && description) {
-          console.log('[Describe] Sending done message with description');
-          const sent = sendStreamMessage(controller, {
-            type: 'done',
-            data: description,
-          });
-          if (sent) {
-            closeStream(controller);
-            console.log('[Describe] Stream closed successfully');
+        if (description && description.trim()) {
+          console.log('[Describe] Attempting to send done message with description, length:', description.length);
+          if (controller) {
+            const sent = sendStreamMessage(controller, {
+              type: 'done',
+              data: description,
+            });
+            if (sent) {
+              closeStream(controller);
+              console.log('[Describe] Stream closed successfully');
+            } else {
+              console.warn('[Describe] Failed to send done message - stream already closed by client');
+            }
           } else {
-            console.warn('[Describe] Failed to send done message - stream already closed');
+            console.warn('[Describe] Controller is null - stream was cancelled');
           }
         } else {
-          if (!streamOpen) {
-            console.warn('[Describe] Cannot send completion - stream already closed');
-          }
-          if (!description) {
-            console.error('[Describe] Cannot send completion - no description received');
-            if (streamOpen) {
-              sendStreamError(controller, 'Failed to generate description. Please check server logs for details.');
-            }
+          console.error('[Describe] Cannot send completion - no description received. Full response:', fullResponse.substring(0, 100));
+          if (controller && streamOpen) {
+            sendStreamError(controller, 'Failed to generate description. Please check server logs for details.');
           }
         }
       } catch (streamError) {

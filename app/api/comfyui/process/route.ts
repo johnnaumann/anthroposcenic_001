@@ -4,7 +4,9 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability } from '@/lib/comfyui';
 import { startComfyUI } from '@/lib/comfyui-startup';
-import { ensureCheckpoint } from '@/lib/model-downloader';
+import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
 
@@ -112,6 +114,64 @@ export async function POST(request: NextRequest) {
         return;
       }
       
+      // Validate that the checkpoint file appears valid (not corrupted)
+      if (!checkpointAppearsValid(config.checkpoint)) {
+        console.warn(`[ComfyUI Process] ⚠️  Model file "${config.checkpoint}" exists but appears invalid (too small). Attempting to re-download...`);
+        
+        if (streamOpen) {
+          sendStreamMessage(controller, {
+            type: 'status',
+            data: `Model file appears corrupted. Re-downloading...`,
+          });
+        }
+        
+        try {
+          // Delete the corrupted file
+          const CHECKPOINTS_DIR = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
+          const corruptedFilePath = join(CHECKPOINTS_DIR, config.checkpoint);
+          await unlink(corruptedFilePath);
+          console.log(`[ComfyUI Process] ✅ Deleted corrupted file`);
+          
+          // Re-download
+          const reDownloaded = await ensureCheckpoint(config.checkpoint, (progress) => {
+            if (typeof progress === 'number' && progress <= 100) {
+              const progressPercent = Math.round(progress);
+              if (streamOpen) {
+                sendStreamMessage(controller, {
+                  type: 'status',
+                  data: `Re-downloading model: ${progressPercent}%`,
+                });
+              }
+            } else {
+              const mb = ((progress as number) / (1024 * 1024)).toFixed(2);
+              if (streamOpen) {
+                sendStreamMessage(controller, {
+                  type: 'status',
+                  data: `Re-downloading model: ${mb} MB downloaded...`,
+                });
+              }
+            }
+          }, true);
+          
+          if (!reDownloaded) {
+            const errorMsg = `Failed to re-download model "${config.checkpoint}". Please download it manually.`;
+            console.error(`[ComfyUI Process] ${errorMsg}`);
+            if (streamOpen) {
+              sendStreamError(controller, errorMsg);
+            }
+            return;
+          }
+          
+          console.log(`[ComfyUI Process] ✅ Model re-downloaded successfully`);
+        } catch (error) {
+          console.error(`[ComfyUI Process] Error re-downloading model:`, error);
+          if (streamOpen) {
+            sendStreamError(controller, `Failed to re-download corrupted model "${config.checkpoint}". Please delete it manually and try again.`);
+          }
+          return;
+        }
+      }
+      
       console.log(`[ComfyUI Process] ✅ Model ready: ${config.checkpoint}`);
       console.log(`[ComfyUI Process] Mode: ${useImage ? 'img2img' : 'txt2img'}`);
 
@@ -166,7 +226,7 @@ export async function POST(request: NextRequest) {
         await mkdir(exportsPath, { recursive: true });
         
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const exportDir = join(exportsPath, `${imageId}-${timestamp}`);
+        const exportDir = join(exportsPath, `${imageId || 'txt2img'}-${timestamp}`);
         await mkdir(exportDir, { recursive: true });
         
         // Save description
@@ -193,14 +253,23 @@ export async function POST(request: NextRequest) {
         }
         
         // Save metadata JSON
+        let imageMimeType: string | null = null;
+        if (useImage && imageId) {
+          const imageFileForMetadata = await findImageFile(imageId);
+          if (imageFileForMetadata) {
+            imageMimeType = imageFileForMetadata.mimeType;
+          }
+        }
+        
         await writeFile(
           join(exportDir, 'metadata.json'),
           JSON.stringify({
-            imageId,
+            imageId: imageId || null,
             timestamp: new Date().toISOString(),
             config,
-            imageMimeType: imageFile.mimeType,
-            comfyImageFilename,
+            imageMimeType: imageMimeType,
+            comfyImageFilename: comfyImageFilename || null,
+            useImage,
           }, null, 2),
           'utf-8'
         );
@@ -303,6 +372,90 @@ export async function POST(request: NextRequest) {
           }
         } else if (update.status === 'error') {
           console.error(`[Process Route] ComfyUI error: ${update.error}`);
+          
+          // Check if error is due to corrupted model file
+          const errorMessage = update.error || '';
+          if (isCorruptionError(errorMessage)) {
+            console.log(`[Process Route] Detected corrupted model: ${config.checkpoint}`);
+            
+            // Try to automatically fix by re-downloading
+            if (streamOpen) {
+              sendStreamMessage(controller, {
+                type: 'status',
+                data: `Model file "${config.checkpoint}" is corrupted. Attempting to re-download...`,
+              });
+            }
+            
+            try {
+              // Delete the corrupted file
+              const CHECKPOINTS_DIR = join(process.cwd(), 'comfyui', 'models', 'checkpoints');
+              const corruptedFilePath = join(CHECKPOINTS_DIR, config.checkpoint);
+              
+              if (checkpointExists(config.checkpoint)) {
+                console.log(`[Process Route] Deleting corrupted file: ${corruptedFilePath}`);
+                await unlink(corruptedFilePath);
+                console.log(`[Process Route] ✅ Deleted corrupted file`);
+              }
+              
+              // Re-download the model
+              if (streamOpen) {
+                sendStreamMessage(controller, {
+                  type: 'status',
+                  data: `Re-downloading model: ${config.checkpoint}...`,
+                });
+              }
+              
+              const checkpointReady = await ensureCheckpoint(config.checkpoint, (progress) => {
+                if (typeof progress === 'number' && progress <= 100) {
+                  const progressPercent = Math.round(progress);
+                  if (streamOpen) {
+                    sendStreamMessage(controller, {
+                      type: 'status',
+                      data: `Re-downloading model: ${progressPercent}%`,
+                    });
+                  }
+                  console.log(`[ComfyUI Process] Re-download progress: ${progressPercent}%`);
+                } else {
+                  const mb = ((progress as number) / (1024 * 1024)).toFixed(2);
+                  if (streamOpen) {
+                    sendStreamMessage(controller, {
+                      type: 'status',
+                      data: `Re-downloading model: ${mb} MB downloaded...`,
+                    });
+                  }
+                  console.log(`[ComfyUI Process] Re-download progress: ${mb} MB`);
+                }
+              }, true); // Force re-download
+              
+              if (checkpointReady) {
+                console.log(`[Process Route] ✅ Model re-downloaded successfully: ${config.checkpoint}`);
+                if (streamOpen) {
+                  sendStreamMessage(controller, {
+                    type: 'status',
+                    data: `Model re-downloaded successfully. Please try processing again.`,
+                  });
+                  sendStreamError(controller, `Model "${config.checkpoint}" was corrupted and has been re-downloaded. Please try processing your image again.`);
+                }
+              } else {
+                const errorMsg = `Failed to re-download model "${config.checkpoint}". Please download it manually to: comfyui/models/checkpoints/`;
+                console.error(`[Process Route] ${errorMsg}`);
+                if (streamOpen) {
+                  sendStreamError(controller, errorMsg);
+                }
+              }
+            } catch (redownloadError) {
+              console.error(`[Process Route] Error during model re-download:`, redownloadError);
+              const errorMsg = `Model file "${config.checkpoint}" is corrupted. Failed to automatically re-download. Please delete the file manually and try again:\n\n` +
+                `1. Delete: comfyui/models/checkpoints/${config.checkpoint}\n` +
+                `2. Try processing again (it will auto-download), or\n` +
+                `3. Download manually from Hugging Face`;
+              if (streamOpen) {
+                sendStreamError(controller, errorMsg);
+              }
+            }
+            return;
+          }
+          
           if (streamOpen) {
             sendStreamError(controller, update.error || 'ComfyUI processing failed');
           }
