@@ -53,14 +53,18 @@ export async function POST(request: NextRequest) {
       const { imageId, model } = body;
 
       if (!imageId) {
-        sendStreamError(controller, 'Image ID is required');
+        if (controller) {
+          sendStreamError(controller, 'Image ID is required');
+        }
         return;
       }
 
       // Find and read the image file
       const imageFile = await findImageFile(imageId);
       if (!imageFile) {
-        sendStreamError(controller, 'Image not found');
+        if (controller) {
+          sendStreamError(controller, 'Image not found');
+        }
         return;
       }
 
@@ -153,7 +157,7 @@ export async function POST(request: NextRequest) {
         }
       } catch (streamError) {
         // If streaming fails but stream is still open, send error
-        if (streamOpen) {
+        if (streamOpen && controller) {
           console.error('Describe streaming error:', streamError);
           sendStreamError(
             controller,
@@ -166,15 +170,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error('Describe error:', error);
-      // Only send error if stream is still open
-      try {
-        sendStreamError(
-          controller,
-          error instanceof Error ? error.message : 'Failed to generate description'
-        );
-      } catch (sendError) {
-        // Stream might already be closed, just log
-        console.error('Failed to send error message (stream may be closed):', sendError);
+      // Only send error if stream is still open and controller exists
+      if (controller) {
+        try {
+          sendStreamError(
+            controller,
+            error instanceof Error ? error.message : 'Failed to generate description'
+          );
+        } catch (sendError) {
+          // Stream might already be closed, just log
+          console.error('Failed to send error message (stream may be closed):', sendError);
+        }
+      } else {
+        console.warn('Cannot send error - controller is null (stream was cancelled)');
       }
     }
   })();
