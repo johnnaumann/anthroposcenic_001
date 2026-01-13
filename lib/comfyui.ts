@@ -400,43 +400,84 @@ export async function findLatestOutputImage(
     console.log(`[FileSystem] Found ${matchingFiles.length} file(s) matching prefix "${filenamePrefix}"`);
     
     // Get file stats and sort by modification time (newest first)
+    // Use birthtime (creation time) if available, otherwise use mtime (modification time)
     const filesWithStats = await Promise.all(
       matchingFiles.map(async (filename) => {
         const filePath = join(outputDir, filename);
         const stats = await stat(filePath);
-        return { filename, mtime: stats.mtime.getTime(), path: filePath };
+        // Prefer birthtime (creation time) if available, fallback to mtime
+        const time = stats.birthtime && stats.birthtime.getTime() > 0 
+          ? stats.birthtime.getTime() 
+          : stats.mtime.getTime();
+        return { 
+          filename, 
+          mtime: stats.mtime.getTime(), 
+          birthtime: stats.birthtime?.getTime() || stats.mtime.getTime(),
+          time, // Use this for sorting
+          path: filePath 
+        };
       })
     );
     
-    // Sort by modification time (newest first)
-    filesWithStats.sort((a, b) => b.mtime - a.mtime);
+    // Sort by time (newest first) - use birthtime if available, otherwise mtime
+    filesWithStats.sort((a, b) => b.time - a.time);
+    
+    // Log all files for debugging
+    console.log(`[FileSystem] All matching files sorted by time (newest first):`);
+    filesWithStats.slice(0, 5).forEach((f, i) => {
+      console.log(`[FileSystem]   ${i + 1}. ${f.filename} - Time: ${new Date(f.time).toISOString()}, MTime: ${new Date(f.mtime).toISOString()}`);
+    });
     
     // If jobStartTime is provided, filter to files created after job started
-    // But be lenient - allow files created up to 5 seconds before job start (in case of clock skew)
+    // But be lenient - allow files created up to 10 seconds before job start (in case of clock skew or file system delays)
     let candidateFiles = filesWithStats;
     if (jobStartTime) {
-      const adjustedStartTime = jobStartTime - 5000; // Allow 5 second window for clock skew
-      candidateFiles = filesWithStats.filter(f => f.mtime >= adjustedStartTime);
+      const adjustedStartTime = jobStartTime - 10000; // Allow 10 second window for clock skew and file system delays
+      candidateFiles = filesWithStats.filter(f => f.time >= adjustedStartTime);
+      
+      console.log(`[FileSystem] Job started at: ${new Date(jobStartTime).toISOString()}`);
+      console.log(`[FileSystem] Adjusted start time (with 10s window): ${new Date(adjustedStartTime).toISOString()}`);
+      console.log(`[FileSystem] Files after adjusted start time: ${candidateFiles.length}`);
+      
       if (candidateFiles.length === 0) {
         // If no files created after job start, use the most recent file anyway
-        console.log(`[FileSystem] No files created after job start (${new Date(jobStartTime).toISOString()}), using most recent file`);
+        console.log(`[FileSystem] ⚠️ No files created after job start, using most recent file anyway`);
         if (filesWithStats.length > 0) {
           candidateFiles = [filesWithStats[0]];
+          console.log(`[FileSystem]   Selected: ${candidateFiles[0].filename} (${new Date(candidateFiles[0].time).toISOString()})`);
         }
       } else {
-        console.log(`[FileSystem] Found ${candidateFiles.length} file(s) created after job start`);
+        console.log(`[FileSystem] Found ${candidateFiles.length} file(s) created after job start:`);
+        candidateFiles.slice(0, 3).forEach((f, i) => {
+          const age = f.time - jobStartTime;
+          console.log(`[FileSystem]   ${i + 1}. ${f.filename} - Age: ${age}ms (${(age / 1000).toFixed(1)}s after job start)`);
+        });
       }
     }
     
     if (candidateFiles.length > 0) {
       const latestFile = candidateFiles[0];
       const imageUrl = getComfyUIOutputImage(latestFile.filename);
-      const fileAge = jobStartTime ? latestFile.mtime - jobStartTime : 0;
-      console.log(`[FileSystem] ✅ Found latest output image: ${latestFile.filename}`);
-      console.log(`[FileSystem]   Modified: ${new Date(latestFile.mtime).toISOString()}`);
+      const fileAge = jobStartTime ? latestFile.time - jobStartTime : 0;
+      console.log(`[FileSystem] ✅ Selected latest output image: ${latestFile.filename}`);
+      console.log(`[FileSystem]   File time: ${new Date(latestFile.time).toISOString()}`);
+      console.log(`[FileSystem]   File mtime: ${new Date(latestFile.mtime).toISOString()}`);
       console.log(`[FileSystem]   Job started: ${jobStartTime ? new Date(jobStartTime).toISOString() : 'unknown'}`);
-      console.log(`[FileSystem]   File age relative to job: ${fileAge}ms`);
+      console.log(`[FileSystem]   File age relative to job: ${fileAge}ms (${(fileAge / 1000).toFixed(1)}s)`);
       console.log(`[FileSystem]   Image URL: ${imageUrl}`);
+      
+      // Verify this is actually the newest file
+      if (filesWithStats.length > 1 && filesWithStats[0].filename !== latestFile.filename) {
+        console.warn(`[FileSystem] ⚠️ WARNING: Selected file is not the absolute newest!`);
+        console.warn(`[FileSystem]   Newest file: ${filesWithStats[0].filename} (${new Date(filesWithStats[0].time).toISOString()})`);
+        console.warn(`[FileSystem]   Selected file: ${latestFile.filename} (${new Date(latestFile.time).toISOString()})`);
+        // Use the absolute newest file instead
+        const actualNewest = filesWithStats[0];
+        const actualNewestUrl = getComfyUIOutputImage(actualNewest.filename);
+        console.log(`[FileSystem] ✅ Using absolute newest file instead: ${actualNewest.filename}`);
+        return { filename: actualNewest.filename, imageUrl: actualNewestUrl };
+      }
+      
       return { filename: latestFile.filename, imageUrl };
     }
     
@@ -475,12 +516,12 @@ export async function createComfyUIWorkflow(
     maxHeight?: number; // Maximum image height (optional, images are now compressed at upload)
     useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
     negativePrompt?: string; // Custom negative prompt (default: creative variation-focused)
-    creativity?: 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high'; // Creativity preset (quality modes preserve detail)
+    creativity?: 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid'; // Creativity preset (quality/vivid modes preserve detail)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   // Get creativity preset or use individual parameters
-  // Default to 'quality' for better detail preservation, or use environment variable
-  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high') || 'quality';
+  // Default to 'vivid' for vivid, high-quality images, or use environment variable
+  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid') || 'vivid';
   
   // Define creativity presets
   // Balance between creativity (variation) and memory usage
@@ -535,6 +576,16 @@ export async function createComfyUIWorkflow(
       scheduler: 'normal',
       negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined, pixelated, artifacts',
     },
+    // Vivid preset: Optimized for vivid, visually arresting images with good detail preservation
+    // Balanced for quality and memory efficiency
+    vivid: {
+      denoiseStrength: 0.45, // Moderate denoise - preserves detail while allowing enhancement
+      cfgScale: 7.5, // Optimal CFG for photorealistic quality without artifacts (7-7.5 range)
+      steps: 32, // Good balance of quality and speed (30-35 range)
+      sampler: 'dpmpp_2m', // Will try dpmpp_2m_karras first for better quality
+      scheduler: 'normal', // Use normal scheduler (karras may not be available)
+      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined, pixelated, artifacts, dull, faded, washed out, desaturated, low contrast, flat lighting',
+    },
   };
 
   const preset = creativityPresets[creativity];
@@ -565,10 +616,10 @@ export async function createComfyUIWorkflow(
   }
 
   // Validate and get a valid sampler (with fallback)
-  // For quality/high/extreme presets, try dpmpp_2m_karras first for best quality
+  // For quality/vivid/high/extreme presets, try dpmpp_2m_karras first for best quality
   let sampler = requestedSampler;
-  if ((creativity === 'quality' || creativity === 'quality-high' || creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
-    // Try dpmpp_2m_karras first for quality and high creativity presets
+  if ((creativity === 'quality' || creativity === 'quality-high' || creativity === 'vivid' || creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
+    // Try dpmpp_2m_karras first for quality, vivid, and high creativity presets
     sampler = await getValidSampler('dpmpp_2m_karras');
   } else {
     // Validate the requested sampler (or preset default)

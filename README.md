@@ -221,15 +221,17 @@ COMFYUI_HOST=http://localhost:8188
 # COMFYUI_MEMORY_MODE=--lowvram
 
 # ComfyUI Creativity Settings (for generating interesting variations)
-# Preset: low, medium, high, extreme, quality (default), quality-high
+# Preset: low, medium, high, extreme, quality, quality-high, vivid (default)
+# - vivid: Vivid, visually arresting images with good detail preservation (balanced quality/memory)
 # - quality/quality-high: Preserve detail from original, higher steps, lower denoise
 # - high/extreme: More variation from input image, less replication
-COMFYUI_CREATIVITY=quality
+COMFYUI_CREATIVITY=vivid
 
 # Advanced: Override individual parameters (optional)
-# COMFYUI_STEPS=35              # Sampling steps (15-50, higher = better quality, slower)
-# COMFYUI_CFG_SCALE=8.0          # CFG scale (5-10, lower = more creative, higher = more prompt adherence)
-# COMFYUI_DENOISE=0.35            # Denoise strength (0.25-0.95, lower = preserve detail, higher = more variation)
+# For vivid preset, recommended overrides:
+# COMFYUI_STEPS=35              # Sampling steps (30-40 for vivid, higher = better quality, slower)
+# COMFYUI_CFG_SCALE=7.5          # CFG scale (7-8 for photorealistic, avoid >9 to prevent artifacts)
+# COMFYUI_DENOISE=0.45            # Denoise strength (0.4-0.5 for vivid, lower = preserve detail, higher = more variation)
 # COMFYUI_SAMPLER=dpmpp_2m_karras # Sampler: euler, dpmpp_2m, dpmpp_2m_karras, euler_a
 # COMFYUI_SCHEDULER=karras        # Scheduler: normal, karras, exponential, simple
 
@@ -384,9 +386,10 @@ Customize in `lib/comfyui.ts`:
 ```typescript
 createComfyUIWorkflow(imageFilename, description, {
   // Creativity preset
-  // 'quality' or 'quality-high' = preserve detail, high quality (default)
+  // 'vivid' = vivid, visually arresting images (default)
+  // 'quality' or 'quality-high' = preserve detail, high quality
   // 'high' or 'extreme' = more variation, less replication
-  creativity: 'quality',
+  creativity: 'vivid',
   
   // Or override individual parameters:
   checkpoint: 'model.safetensors',
@@ -401,8 +404,14 @@ createComfyUIWorkflow(imageFilename, description, {
 
 **Creativity Presets:**
 
-**Quality-Focused (Preserve Detail):**
-- **`quality`**: Preserve detail, high quality (denoise: 0.35, CFG: 8.0, steps: 35) - **Default**
+**Vivid & Quality-Focused (Best for Visual Impact):**
+- **`vivid`**: Vivid, visually arresting images with good detail (denoise: 0.45, CFG: 7.5, steps: 32) - **Default**
+  - Optimized for photorealistic quality without artifacts
+  - Balanced for quality and memory efficiency
+  - Enhanced negative prompt for better contrast and saturation
+
+**Detail Preservation (Maximum Quality):**
+- **`quality`**: Preserve detail, high quality (denoise: 0.35, CFG: 8.0, steps: 35)
 - **`quality-high`**: Maximum detail preservation (denoise: 0.30, CFG: 8.5, steps: 45)
 
 **Variation-Focused (More Creative Changes):**
