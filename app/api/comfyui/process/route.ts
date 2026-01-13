@@ -1,12 +1,10 @@
 import { NextRequest } from 'next/server';
-import { readFile, copyFile, mkdir, writeFile } from 'fs/promises';
+import { readFile, copyFile, mkdir, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability } from '@/lib/comfyui';
 import { startComfyUI } from '@/lib/comfyui-startup';
 import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
-import { unlink } from 'fs/promises';
-import { join } from 'path';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
 
