@@ -42,6 +42,28 @@ get_download_url() {
     "sd-v1-5.safetensors"|"v1-5-pruned.safetensors")
       echo "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors"
       ;;
+    # Abstract/Artistic Models
+    "openjourney-v4.safetensors")
+      echo "https://huggingface.co/prompthero/openjourney/resolve/main/mdjrny-v4.safetensors"
+      ;;
+    "protogen-v2.2.safetensors")
+      echo "https://huggingface.co/darkstorm2150/Protogen_v2.2_Official_Release/resolve/main/Protogen_V2.2.safetensors"
+      ;;
+    "analog-diffusion.safetensors")
+      echo "https://huggingface.co/wavymulder/Analog-Diffusion/resolve/main/analog-diffusion-1.0.safetensors"
+      ;;
+    "inkpunk-diffusion.safetensors")
+      echo "https://huggingface.co/Envvi/Inkpunk-Diffusion/resolve/main/inkpunk-diffusion.safetensors"
+      ;;
+    "pastel-mix.safetensors")
+      echo "https://huggingface.co/andite/pastel-mix/resolve/main/pastelMix.safetensors"
+      ;;
+    "waifu-diffusion.safetensors")
+      echo "https://huggingface.co/hakurei/waifu-diffusion/resolve/main/wd-1-4-anime_e2.safetensors"
+      ;;
+    "epic-diffusion.safetensors")
+      echo "https://huggingface.co/xyn-ai/epic-diffusion/resolve/main/epicDiffusion.safetensors"
+      ;;
     # SDArt_Complete_Edition - URL may be incorrect, skip for now
     # "SDArt_Complete_Edition.safetensors")
     #   echo "https://huggingface.co/Guizmus/SDArt_Complete_Edition/resolve/main/SDArt_Complete_Edition.safetensors"
