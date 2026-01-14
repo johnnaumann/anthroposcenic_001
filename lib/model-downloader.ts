@@ -26,7 +26,9 @@ const MODEL_REGISTRY: Record<string, string> = {
   'analog-diffusion.safetensors': 'https://huggingface.co/wavymulder/Analog-Diffusion/resolve/main/analog-diffusion-1.0.safetensors',
   'inkpunk-diffusion.safetensors': 'https://huggingface.co/Envvi/Inkpunk-Diffusion/resolve/main/inkpunk-diffusion.safetensors',
   'pastel-mix.safetensors': 'https://huggingface.co/andite/pastel-mix/resolve/main/pastelMix.safetensors',
-  'waifu-diffusion.safetensors': 'https://huggingface.co/hakurei/waifu-diffusion/resolve/main/wd-1-4-anime_e2.safetensors',
+  // waifu-diffusion - Official version is .ckpt, not safetensors. Using alternative anime model.
+  // 'waifu-diffusion.safetensors': 'https://huggingface.co/hakurei/waifu-diffusion/resolve/main/wd-1-4-anime_e2.safetensors', // 404 - not available
+  'waifu-diffusion.safetensors': 'https://huggingface.co/subaqua/_unofficial-WD1.4-fp16-safetensors/resolve/main/wd-1-4-anime_e2.safetensors',
   'epic-diffusion.safetensors': 'https://huggingface.co/xyn-ai/epic-diffusion/resolve/main/epicDiffusion.safetensors',
   // SDArt_Complete_Edition - URL may be incorrect or require authentication
   // 'SDArt_Complete_Edition.safetensors': 'https://huggingface.co/Guizmus/SDArt_Complete_Edition/resolve/main/SDArt_Complete_Edition.safetensors',

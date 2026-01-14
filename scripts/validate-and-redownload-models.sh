@@ -59,7 +59,7 @@ get_download_url() {
       echo "https://huggingface.co/andite/pastel-mix/resolve/main/pastelMix.safetensors"
       ;;
     "waifu-diffusion.safetensors")
-      echo "https://huggingface.co/hakurei/waifu-diffusion/resolve/main/wd-1-4-anime_e2.safetensors"
+      echo "https://huggingface.co/subaqua/_unofficial-WD1.4-fp16-safetensors/resolve/main/wd-1-4-anime_e2.safetensors"
       ;;
     "epic-diffusion.safetensors")
       echo "https://huggingface.co/xyn-ai/epic-diffusion/resolve/main/epicDiffusion.safetensors"

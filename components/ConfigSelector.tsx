@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
+import { HelpCircle } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
 
 interface ConfigSelectorProps {
@@ -129,7 +131,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Checkpoint Model</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Checkpoint Model</label>
+              <Tooltip content="The base AI model that determines the artistic style and capabilities. Different models produce different visual styles (realistic, abstract, anime, etc.). Choose based on the aesthetic you want to achieve.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <select
               value={checkpoint}
               onChange={(e) => setCheckpoint(e.target.value)}
@@ -145,7 +152,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Sampler</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Sampler</label>
+              <Tooltip content="The algorithm used to generate the image. Different samplers produce different results: some are faster, some are more creative, and some produce higher quality. Euler and DPM++ variants are popular choices.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <select
               value={sampler}
               onChange={(e) => setSampler(e.target.value)}
@@ -161,7 +173,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Scheduler</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Scheduler</label>
+              <Tooltip content="Controls how the noise is reduced during generation. 'karras' is popular for quality, 'normal' is balanced, 'exponential' can be more creative. Affects the final image quality and style.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <select
               value={scheduler}
               onChange={(e) => setScheduler(e.target.value)}
@@ -177,7 +194,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Steps</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Steps</label>
+              <Tooltip content="Number of iterations the AI takes to generate the image. Higher values (30-50) produce better quality but take longer. Lower values (10-20) are faster but may have less detail. Recommended: 20-40 for most use cases.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <input
               type="number"
               value={steps}
@@ -190,7 +212,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">CFG Scale</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">CFG Scale</label>
+              <Tooltip content="How closely the AI follows your prompt. Lower values (5-7) allow more creative interpretation and variation. Higher values (8-12) stick closer to the prompt but may be less creative. Recommended: 7-9 for balanced results.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <input
               type="number"
               value={cfgScale}
@@ -204,7 +231,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Denoise Strength</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Denoise Strength</label>
+              <Tooltip content="How much the input image is modified (for img2img mode). Lower values (0.3-0.5) preserve more of the original image. Higher values (0.6-0.9) create more variation and artistic interpretation. Only applies when using an uploaded image.">
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </Tooltip>
+            </div>
             <input
               type="number"
               value={denoiseStrength}
@@ -219,7 +251,12 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Negative Prompt</label>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Negative Prompt</label>
+            <Tooltip content="Things you want to avoid in the generated image. Common terms: 'blurry', 'bad quality', 'distorted', 'watermark', 'low quality'. Adding 'realistic' or 'photorealistic' can push results toward more abstract/artistic styles.">
+              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+            </Tooltip>
+          </div>
           <textarea
             value={negativePrompt}
             onChange={(e) => setNegativePrompt(e.target.value)}
