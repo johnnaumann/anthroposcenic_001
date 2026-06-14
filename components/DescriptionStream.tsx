@@ -70,7 +70,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
         if (done) {
           console.log('[DescriptionStream] Stream ended');
           // If stream ended but we didn't get a done message, check if we have accumulated description
-          if (isStreaming && description && !config) {
+          if (isStreaming && description) {
             console.warn('[DescriptionStream] Stream ended without done message, but we have description text');
           }
           break;
@@ -93,8 +93,8 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
                 const finalDescription = typeof data.data === 'string' ? data.data : description;
                 if (finalDescription && finalDescription.trim()) {
                   setDescription(finalDescription);
-                  onDescriptionComplete(finalDescription);
                   setIsStreaming(false);
+                  // Don't auto-navigate - wait for user to click "Next"
                   return;
                 } else {
                   throw new Error('Invalid description format received');
@@ -122,7 +122,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
         if (description && description.length > 0) {
           console.log('[DescriptionStream] We have description text, using it even without done message');
           // Use the accumulated description even if done message wasn't received
-          onDescriptionComplete(description);
+          // Don't auto-navigate - wait for user to click "Next"
           setIsStreaming(false);
         } else {
           setError('Stream ended without response. The model may not be responding. Please ensure the model is created: npm run ollama:modelfile');
@@ -173,16 +173,24 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
             {isStreaming ? 'Streaming...' : description ? 'Description ready' : 'Waiting for image'}
           </div>
           <div className="flex gap-2">
-            {description && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={copyToClipboard}
-                disabled={!description}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Copy
-              </Button>
+            {description && !isStreaming && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyToClipboard}
+                  disabled={!description}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+                <Button
+                  onClick={() => onDescriptionComplete(description)}
+                  disabled={!description || isStreaming}
+                >
+                  Next: Edit Description
+                </Button>
+              </>
             )}
           </div>
         </div>

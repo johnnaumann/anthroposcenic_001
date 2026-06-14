@@ -127,8 +127,8 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
                 setResultImage(data.data);
                 setProgress(100);
                 setStatus('Processing complete!');
-                onProcessingComplete(data.data);
                 setIsProcessing(false);
+                // Don't auto-navigate - wait for user to click "Next"
                 return;
               } else if (data.type === 'done') {
                 // If we get 'done' but no image yet, check if we have an image URL from a previous message
@@ -185,14 +185,24 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
         )}
 
         {resultImage && (
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Result:</div>
-            <div className="border rounded-lg overflow-hidden">
-              <img
-                src={resultImage}
-                alt="Processed result"
-                className="w-full h-auto"
-              />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Result:</div>
+              <div className="border rounded-lg overflow-hidden">
+                <img
+                  src={resultImage}
+                  alt="Processed result"
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => onProcessingComplete(resultImage)}
+                disabled={disabled}
+              >
+                View Result
+              </Button>
             </div>
           </div>
         )}

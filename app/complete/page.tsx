@@ -11,18 +11,30 @@ function CompleteContent() {
   const imageUrl = searchParams.get('imageUrl');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!imageUrl) {
-      router.push('/upload');
-    }
-  }, [imageUrl, router]);
+  // No auto-redirect - show error message if imageUrl is missing
 
   const handleReset = () => {
     router.push('/upload');
   };
 
   if (!imageUrl) {
-    return null;
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2">Anthroposcenic</h1>
+            <p className="text-muted-foreground">Processing complete!</p>
+          </div>
+          <div className="mb-6">
+            <PipelineStatus step="complete" error="Image URL is missing" />
+          </div>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground mb-4">No image URL provided. Please start from the upload step.</p>
+            <Button onClick={() => router.push('/upload')}>Go to Upload</Button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
