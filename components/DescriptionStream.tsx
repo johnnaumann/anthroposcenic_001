@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Loader2 } from 'lucide-react';
+import { Copy, Loader2, ArrowRight } from 'lucide-react';
+
 interface DescriptionStreamProps {
   imageId: string | null;
   onDescriptionComplete: (description: string) => void;
@@ -26,8 +26,6 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
     }
 
     return () => {
-      // Only abort if component is actually unmounting (not just re-rendering)
-      // Don't abort on every dependency change - let the stream complete
       if (abortControllerRef.current && !imageId) {
         abortControllerRef.current.abort();
       }
@@ -66,10 +64,8 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) {
-          console.log('[DescriptionStream] Stream ended');
-          // If stream ended but we didn't get a done message, check if we have accumulated description
           if (isStreaming && description) {
             console.warn('[DescriptionStream] Stream ended without done message, but we have description text');
           }
@@ -84,58 +80,45 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
+
               if (data.type === 'token' && data.data) {
                 setDescription(prev => prev + data.data);
               } else if (data.type === 'done') {
-                console.log('[DescriptionStream] Received done message');
-                // data.data should be the description string
                 const finalDescription = typeof data.data === 'string' ? data.data : description;
                 if (finalDescription && finalDescription.trim()) {
                   setDescription(finalDescription);
                   setIsStreaming(false);
-                  // Don't auto-navigate - wait for user to click "Next"
                   return;
                 } else {
                   throw new Error('Invalid description format received');
                 }
               } else if (data.type === 'error') {
-                console.error('[DescriptionStream] Error received:', data.error);
                 throw new Error(data.error || 'Unknown error');
               }
             } catch (e) {
-              // Log parsing errors for debugging
               if (e instanceof SyntaxError) {
                 console.warn('[DescriptionStream] Failed to parse SSE line:', line.substring(0, 100));
               } else {
-                console.error('[DescriptionStream] Error processing message:', e);
                 throw e;
               }
             }
           }
         }
       }
-      
-      // If we reach here and still streaming, the stream ended without a done message
+
       if (isStreaming) {
-        console.warn('[DescriptionStream] Stream ended without done message');
         if (description && description.length > 0) {
-          console.log('[DescriptionStream] We have description text, using it even without done message');
-          // Use the accumulated description even if done message wasn't received
-          // Don't auto-navigate - wait for user to click "Next"
           setIsStreaming(false);
         } else {
-          setError('Stream ended without response. The model may not be responding. Please ensure the model is created: npm run ollama:modelfile');
+          setError('Stream ended without a response. The model may not be responding — ensure it exists: ollama list');
           setIsStreaming(false);
         }
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('[DescriptionStream] Error:', err);
         setError(err.message);
         setIsStreaming(false);
       } else if (err instanceof Error && err.name === 'AbortError') {
-        console.log('[DescriptionStream] Request aborted');
         setIsStreaming(false);
       }
     }
@@ -146,60 +129,41 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Image Analysis & Configuration</CardTitle>
-        <CardDescription>
-          AI-generated description and ComfyUI configuration from Ollama
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="relative">
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={isStreaming ? 'Generating description and configuration...' : 'Description and configuration will appear here'}
-            className="min-h-[200px] font-mono text-sm"
-            readOnly={isStreaming}
-          />
-          {isStreaming && (
-            <div className="absolute top-2 right-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {isStreaming ? 'Streaming...' : description ? 'Description ready' : 'Waiting for image'}
-          </div>
-          <div className="flex gap-2">
-            {description && !isStreaming && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyToClipboard}
-                  disabled={!description}
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy
-                </Button>
-                <Button
-                  onClick={() => onDescriptionComplete(description)}
-                  disabled={!description || isStreaming}
-                >
-                  Next: Edit Description
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-        {error && (
-          <div className="p-3 bg-muted text-foreground/80 border border-foreground/20 text-sm rounded-md">
-            {error}
+    <div className="space-y-4">
+      <div className="relative">
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={isStreaming ? 'Generating prompt…' : 'The generated prompt will appear here'}
+          className="min-h-[240px] font-mono text-[13px] leading-relaxed"
+          readOnly={isStreaming}
+        />
+        {isStreaming && (
+          <div className="absolute right-3 top-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted-foreground">
+          {isStreaming ? 'Streaming…' : description ? `${description.length} characters` : 'Waiting for image'}
+        </span>
+        {description && !isStreaming && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={copyToClipboard}>
+              <Copy />
+              Copy
+            </Button>
+            <Button size="sm" onClick={() => onDescriptionComplete(description)} disabled={isStreaming}>
+              Continue
+              <ArrowRight />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAvailableSamplers } from '@/lib/comfyui';
-import { readdir } from 'fs/promises';
+import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 
 const COMFYUI_MODELS_DIR = process.env.COMFYUI_MODELS_DIR || './comfyui/models/checkpoints';
@@ -19,20 +19,36 @@ export async function GET() {
     try {
       const checkpointsPath = join(process.cwd(), COMFYUI_MODELS_DIR);
       const files = await readdir(checkpointsPath);
-      
-      // Filter checkpoint files
-      checkpoints = files
-        .filter(file => file.endsWith('.safetensors') || file.endsWith('.ckpt'))
+
+      // Filter to real checkpoint files only. Failed/aborted downloads leave tiny
+      // stub files (e.g. an HTML error body or "Entry not found") that crash ComfyUI
+      // if selected, so we drop anything below a sane minimum size.
+      const MIN_CHECKPOINT_BYTES = 100 * 1024 * 1024; // 100 MB
+      const candidates = files.filter(
+        file => file.endsWith('.safetensors') || file.endsWith('.ckpt')
+      );
+      const withSizes = await Promise.all(
+        candidates.map(async (file) => {
+          try {
+            const { size } = await stat(join(checkpointsPath, file));
+            return { file, size };
+          } catch {
+            return { file, size: 0 };
+          }
+        })
+      );
+      checkpoints = withSizes
+        .filter(({ size }) => size >= MIN_CHECKPOINT_BYTES)
+        .map(({ file }) => file)
         .sort();
-      
-      // Prioritize DreamShaper_8_pruned.safetensors if it exists
-      const dreamshaperIndex = checkpoints.findIndex(cp => cp.includes('DreamShaper'));
-      if (dreamshaperIndex > 0) {
-        // Move it to the front
-        const dreamshaper = checkpoints[dreamshaperIndex];
-        checkpoints.splice(dreamshaperIndex, 1);
-        checkpoints.unshift(dreamshaper);
-      }
+
+      // Order so the best default lands first in the dropdown:
+      // SDXL (if installed) > DreamShaper > everything else. Array.sort is stable,
+      // so alphabetical order is preserved within each tier.
+      const SDXL_PATTERN = /(sdxl|juggernaut|playground|pony|dreamshaperxl|[-_.]xl[-_.]?)/i;
+      const rank = (cp: string) =>
+        SDXL_PATTERN.test(cp) ? 0 : /dreamshaper/i.test(cp) ? 1 : 2;
+      checkpoints.sort((a, b) => rank(a) - rank(b));
     } catch (error) {
       console.warn('Could not read checkpoints directory:', error);
       // Return common defaults
@@ -52,10 +68,15 @@ export async function GET() {
       samplers,
       schedulers,
       defaults: {
-        steps: 30,
-        cfgScale: 7.5,
-        denoiseStrength: 0.45,
-        negativePrompt: 'blurry, bad quality, distorted, watermark, low quality',
+        // dpmpp_2m + karras gives noticeably crisper detail than euler/normal.
+        sampler: 'dpmpp_2m',
+        scheduler: 'karras',
+        steps: 32,
+        cfgScale: 7,
+        // 0.6 reinterprets the image enough to be genuinely "interesting" while
+        // keeping the original composition; the hires-fix pass restores fine detail.
+        denoiseStrength: 0.6,
+        negativePrompt: 'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate',
       },
     });
   } catch (error) {

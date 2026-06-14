@@ -520,6 +520,10 @@ export async function createComfyUIWorkflow(
     useImage?: boolean; // Whether to use img2img (true) or txt2img (false)
     width?: number; // Image width for txt2img (default: 1024)
     height?: number; // Image height for txt2img (default: 1024)
+    qualityBoost?: boolean; // Append detail/quality booster tags to the positive prompt (default: true)
+    hiresFix?: boolean; // Run a second latent-upscale refine pass for added detail (default: true)
+    hiresFactor?: number; // Latent upscale multiplier for the hires refine pass (default: 1.5)
+    hiresDenoise?: number; // Denoise strength for the hires refine pass (default: 0.35)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   // Get creativity preset or use individual parameters
@@ -634,9 +638,27 @@ export async function createComfyUIWorkflow(
   const txt2imgWidth = options.width || maxWidth;
   const txt2imgHeight = options.height || maxHeight;
 
+  // Quality boosters: appended to the positive prompt to reliably increase
+  // perceived detail, sharpness and vibrancy. Style-agnostic (no "photorealistic")
+  // so it works for abstract/artistic checkpoints too.
+  const qualityBoost = options.qualityBoost !== false;
+  const QUALITY_BOOSTER = 'highly detailed, intricate details, sharp focus, fine textures, dramatic lighting, rich vivid colors, high dynamic range, masterpiece, best quality';
+  const cleanedDescription = description.trim().replace(/[\s,]+$/, '');
+  const positivePrompt = qualityBoost
+    ? `${cleanedDescription}, ${QUALITY_BOOSTER}`
+    : description;
+
+  // Hires fix: after the first pass, upscale the latent and run a short, low-denoise
+  // refine pass. This is the single most reliable way to make the output look more
+  // detailed and "finished" than the input without a separate upscale model.
+  const useHires = options.hiresFix !== false;
+  const hiresFactor = options.hiresFactor ?? 1.5;
+  const hiresDenoise = options.hiresDenoise ?? 0.35;
+  const hiresSteps = Math.max(12, Math.round(steps * 0.6));
+
   // Generate unique node IDs
   // Different node structures for img2img vs txt2img
-  const nodeIds = useImage ? {
+  const nodeIds: Record<string, string> = useImage ? {
     loadImage: '1',
     resizeImage: '2', // Optional - only used if useImageResize is true
     loadCheckpoint: '3',
@@ -646,6 +668,8 @@ export async function createComfyUIWorkflow(
     kSampler: '7',
     vaeDecode: '8',
     saveImage: '9',
+    latentUpscale: '10', // Hires fix (only used if useHires is true)
+    kSampler2: '11', // Hires refine pass (only used if useHires is true)
   } : {
     emptyLatentImage: '1',
     loadCheckpoint: '2',
@@ -654,6 +678,8 @@ export async function createComfyUIWorkflow(
     kSampler: '5',
     vaeDecode: '6',
     saveImage: '7',
+    latentUpscale: '8', // Hires fix (only used if useHires is true)
+    kSampler2: '9', // Hires refine pass (only used if useHires is true)
   };
 
   // Determine image source (resized or direct) for img2img
@@ -710,7 +736,7 @@ export async function createComfyUIWorkflow(
     [nodeIds.clipTextEncode]: {
       class_type: 'CLIPTextEncode',
       inputs: {
-        text: description,
+        text: positivePrompt,
         clip: [nodeIds.loadCheckpoint, 1],
       },
       _meta: { title: 'CLIP Text Encode (Positive)' },
@@ -757,11 +783,41 @@ export async function createComfyUIWorkflow(
       _meta: { title: 'KSampler' },
     },
 
-    // Node 8: VAE Decode (Latent to Image)
+    // Hires fix: upscale the first-pass latent, then refine it with a short
+    // low-denoise pass. Adds detail/sharpness beyond the input resolution.
+    ...(useHires ? {
+      [nodeIds.latentUpscale]: {
+        class_type: 'LatentUpscaleBy',
+        inputs: {
+          samples: [nodeIds.kSampler, 0],
+          upscale_method: 'nearest-exact',
+          scale_by: hiresFactor,
+        },
+        _meta: { title: 'Hires Latent Upscale' },
+      },
+      [nodeIds.kSampler2]: {
+        class_type: 'KSampler',
+        inputs: {
+          seed: seed,
+          steps: hiresSteps,
+          cfg: cfgScale,
+          sampler_name: sampler,
+          scheduler: scheduler,
+          denoise: hiresDenoise,
+          positive: [nodeIds.clipTextEncode, 0],
+          negative: [nodeIds.clipTextEncodeNegative, 0],
+          model: [nodeIds.loadCheckpoint, 0],
+          latent_image: [nodeIds.latentUpscale, 0],
+        },
+        _meta: { title: 'Hires Refine Sampler' },
+      },
+    } : {}),
+
+    // Node 8: VAE Decode (Latent to Image) - decodes the final (refined) latent
     [nodeIds.vaeDecode]: {
       class_type: 'VAEDecode',
       inputs: {
-        samples: [nodeIds.kSampler, 0],
+        samples: useHires ? [nodeIds.kSampler2, 0] : [nodeIds.kSampler, 0],
         vae: [nodeIds.loadCheckpoint, 2],
       },
       _meta: { title: 'VAE Decode' },

@@ -11,8 +11,8 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 // Image compression settings
 const MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || '1024', 10); // Max width in pixels
 const MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || '1024', 10); // Max height in pixels
-const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || '85', 10); // JPEG quality (1-100)
-const PNG_QUALITY = parseInt(process.env.PNG_QUALITY || '90', 10); // PNG quality (1-100)
+const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || '95', 10); // JPEG quality (1-100) — high to preserve img2img source detail
+const PNG_QUALITY = parseInt(process.env.PNG_QUALITY || '95', 10); // PNG quality (1-100)
 const WEBP_QUALITY = parseInt(process.env.WEBP_QUALITY || '85', 10); // WebP quality (1-100)
 
 const ALLOWED_MIME_TYPES = [

@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { UploadResponse } from '@/types';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ImageUploadZoneProps {
   onUploadComplete: (response: UploadResponse) => void;
@@ -42,8 +41,6 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
     setError(null);
 
     try {
-      // Upload the image
-      setError('Uploading image...');
       const formData = new FormData();
       formData.append('file', file);
 
@@ -119,12 +116,10 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
         throw new Error(errorData.error || 'Failed to remove image');
       }
 
-      // Clear local state
       setPreview(null);
       setCurrentImageId(null);
       setError(null);
 
-      // Notify parent component
       if (onRemove) {
         onRemove();
       }
@@ -136,100 +131,79 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
   }, [currentImageId, onRemove]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upload Image</CardTitle>
-        <CardDescription>
-          Drag and drop an image or click to browse
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`
-            border-2 border-dashed rounded-lg p-8 text-center transition-colors
-            ${isDragging ? 'border-primary bg-primary/5' : 'border-muted'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50'}
-          `}
-        >
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileInput}
-            disabled={disabled || isUploading}
-            className="hidden"
-            id="image-upload"
-          />
+    <div className="space-y-3">
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={cn(
+          'rounded-xl border border-dashed transition-colors',
+          isDragging ? 'border-foreground/50 bg-accent/40' : 'border-border',
+          disabled && 'opacity-50'
+        )}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileInput}
+          disabled={disabled || isUploading}
+          className="hidden"
+          id="image-upload"
+        />
+
+        {preview ? (
+          <div className="p-4">
+            <div className="relative mx-auto w-fit">
+              <img src={preview} alt="Preview" className="max-h-72 rounded-lg" />
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  disabled={isRemoving}
+                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur transition-colors hover:bg-accent disabled:opacity-50"
+                  title="Remove image"
+                  aria-label="Remove image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span>Image ready</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  disabled={isRemoving}
+                  className="underline underline-offset-4 transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  {isRemoving ? 'Removing…' : 'Remove'}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
           <label
             htmlFor="image-upload"
-            className="cursor-pointer"
-          >
-            {preview ? (
-              <div className="space-y-4 relative">
-                <div className="relative inline-block mx-auto">
-                  <img
-                    src={preview}
-                    alt="Preview"
-                    className="max-h-64 mx-auto rounded-lg"
-                  />
-                  {!disabled && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRemove();
-                      }}
-                      disabled={isRemoving}
-                      className="absolute top-2 right-2 p-1.5 bg-background/90 hover:bg-background border border-foreground/30 rounded-md transition-colors disabled:opacity-50 shadow-sm"
-                      title="Remove image"
-                      aria-label="Remove image"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    Image uploaded successfully
-                  </p>
-                  {!disabled && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRemove();
-                      }}
-                      disabled={isRemoving}
-                      className="text-sm text-muted-foreground hover:text-foreground underline disabled:opacity-50"
-                    >
-                      {isRemoving ? 'Removing...' : 'Remove'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">
-                    {isUploading ? 'Uploading...' : 'Click to upload or drag and drop'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    PNG, JPG, GIF, WEBP up to 10MB
-                  </p>
-                </div>
-              </div>
+            className={cn(
+              'flex flex-col items-center justify-center gap-3 px-6 py-16 text-center',
+              disabled ? 'cursor-not-allowed' : 'cursor-pointer'
             )}
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-muted-foreground">
+              {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+            </div>
+            <div>
+              <p className="text-sm font-medium">
+                {isUploading ? 'Uploading…' : 'Click to upload or drag & drop'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, GIF, WEBP · up to 10MB</p>
+            </div>
           </label>
-        </div>
-        {error && (
-          <div className="mt-4 p-3 bg-muted text-foreground/80 border border-foreground/20 text-sm rounded-md">
-            {error}
-          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
+    </div>
   );
 }

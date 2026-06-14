@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { ArrowRight } from 'lucide-react';
 
 interface DescriptionEditorProps {
   description: string | null;
@@ -12,15 +12,14 @@ interface DescriptionEditorProps {
   disabled?: boolean;
 }
 
-export function DescriptionEditor({ 
-  description, 
-  onDescriptionChange, 
+export function DescriptionEditor({
+  description,
+  onDescriptionChange,
   onNext,
-  disabled 
+  disabled,
 }: DescriptionEditorProps) {
   const [editedDescription, setEditedDescription] = useState(description || '');
 
-  // Update state when description prop changes (e.g., from URL params)
   useEffect(() => {
     if (description) {
       setEditedDescription(description);
@@ -39,34 +38,24 @@ export function DescriptionEditor({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Edit Description</CardTitle>
-        <CardDescription>
-          Review and edit the image description. This will be used as the prompt for image generation.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Textarea
-          value={editedDescription}
-          onChange={(e) => handleChange(e.target.value)}
-          placeholder="Image description will appear here..."
-          className="min-h-[200px] font-mono text-sm"
-          disabled={disabled || !description}
-        />
-        
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {editedDescription ? `${editedDescription.length} characters` : 'No description'}
-          </div>
-          <Button
-            onClick={handleNext}
-            disabled={disabled || !editedDescription.trim()}
-          >
-            Next: Configure Settings
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Textarea
+        value={editedDescription}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder="The prompt will appear here…"
+        className="min-h-[240px] font-mono text-[13px] leading-relaxed"
+        disabled={disabled || !description}
+      />
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {editedDescription ? `${editedDescription.length} characters` : 'No prompt'}
+        </span>
+        <Button onClick={handleNext} disabled={disabled || !editedDescription.trim()}>
+          Continue
+          <ArrowRight />
+        </Button>
+      </div>
+    </div>
   );
 }

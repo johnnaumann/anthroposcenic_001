@@ -22,7 +22,7 @@ export function Tooltip({ content, children }: TooltipProps) {
         {children}
       </div>
       {isVisible && (
-        <div className="absolute z-50 px-3 py-2 text-xs text-foreground bg-popover border border-border rounded-md shadow-lg whitespace-normal max-w-xs bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none">
+        <div className="absolute z-50 px-3 py-2 text-xs leading-relaxed text-popover-foreground bg-popover border border-border rounded-md shadow-md whitespace-normal max-w-xs bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none">
           {content}
           <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
             <div className="border-4 border-transparent border-t-popover"></div>

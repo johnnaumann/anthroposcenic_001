@@ -2,20 +2,20 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to upload step
     router.push('/upload');
   }, [router]);
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-2">Anthroposcenic</h1>
-        <p className="text-muted-foreground">Redirecting...</p>
+    <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading Anthroposcenic…
       </div>
     </main>
   );

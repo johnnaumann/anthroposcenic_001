@@ -90,8 +90,18 @@ export async function POST(request: NextRequest) {
       try {
         let tokenCount = 0;
         
-        // System prompt in modelfile handles instructions - just use minimal trigger
-        const prompt = 'Describe';
+        // Steer the model to emit a Stable Diffusion-style prompt rather than prose.
+        // Diffusion text encoders key on front-loaded, comma-separated visual tokens,
+        // so this produces a far stronger conditioning signal than full sentences.
+        // (When using the custom anthroposcenic-describe model, its modelfile SYSTEM
+        // prompt says the same thing; this keeps the raw-model path aligned too.)
+        const prompt =
+          'Write a single Stable Diffusion image prompt that recreates and enriches this image. ' +
+          'Output ONLY a comma-separated list of concrete visual tags, most important first: ' +
+          'main subject and key objects, then setting/background, composition and camera angle, ' +
+          'lighting, dominant colors and materials, textures, and overall art style or medium. ' +
+          'Be specific and vivid. No full sentences, no explanations, no quotation marks, no preamble. ' +
+          'Aim for 30-60 descriptive tags.';
         
         console.log('[Describe] Sending request to Ollama');
         
