@@ -27,14 +27,9 @@ fi
 PORT=${COMFYUI_PORT:-8188}
 
 # Memory optimization flags
-# Options: --lowvram (less VRAM), --novram (CPU only), --cpu (force CPU), --normalvram (default)
-# On macOS, PyTorch is CPU-only, so --cpu mode is required
+# Options: --lowvram (less VRAM), --novram, --cpu (force CPU), --normalvram (default)
+# On Apple Silicon, leave empty so ComfyUI auto-selects the Metal (MPS) GPU.
 COMFYUI_MEMORY_MODE=${COMFYUI_MEMORY_MODE:-""}
-
-# Auto-detect macOS and use CPU mode if no mode specified
-if [ -z "$COMFYUI_MEMORY_MODE" ] && [[ "$OSTYPE" == "darwin"* ]]; then
-    COMFYUI_MEMORY_MODE="--cpu"
-fi
 
 echo "🚀 Starting ComfyUI..."
 echo "🌐 ComfyUI will be available at: http://localhost:$PORT"
@@ -53,12 +48,10 @@ cd "$COMFYUI_DIR"
 # Set PYTHONDONTWRITEBYTECODE to avoid cache issues
 export PYTHONDONTWRITEBYTECODE=1
 
-# Force CPU-only mode on macOS (disable MPS to prevent memory issues)
+# Apple Silicon: enable the Metal (MPS) GPU; fall back to CPU for any op MPS
+# doesn't support yet instead of erroring out.
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    export PYTORCH_ENABLE_MPS_FALLBACK=0
-    export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
-    # Disable MPS entirely to force CPU
-    export PYTORCH_MPS_ENABLE=0
+    export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
 # Build command with optional memory flags

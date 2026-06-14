@@ -35,16 +35,18 @@ export async function startComfyUI(): Promise<boolean> {
   // Set environment variables for macOS
   const env = { ...process.env };
   if (process.platform === 'darwin') {
-    env.PYTORCH_ENABLE_MPS_FALLBACK = '0';
-    env.PYTORCH_MPS_HIGH_WATERMARK_RATIO = '0.0';
-    env.PYTORCH_MPS_ENABLE = '0';
+    // Apple Silicon: use the Metal (MPS) GPU. Fall back to CPU for any op MPS
+    // doesn't support yet, rather than erroring out.
+    env.PYTORCH_ENABLE_MPS_FALLBACK = '1';
     env.PYTHONDONTWRITEBYTECODE = '1';
   }
 
   // Build command arguments
   const pythonPath = join(comfyuiDir, 'venv', 'bin', 'python');
   const mainPy = join(comfyuiDir, 'main.py');
-  const memoryMode = process.env.COMFYUI_MEMORY_MODE || (process.platform === 'darwin' ? '--cpu' : '');
+  // Empty → ComfyUI auto-detects the best device (MPS on Apple Silicon, CUDA on
+  // NVIDIA). Only force a mode if COMFYUI_MEMORY_MODE is explicitly set.
+  const memoryMode = process.env.COMFYUI_MEMORY_MODE || '';
   const args = ['-B', mainPy, '--port', '8188'];
   
   if (memoryMode) {

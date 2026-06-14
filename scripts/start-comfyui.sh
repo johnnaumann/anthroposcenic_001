@@ -42,15 +42,11 @@ fi
 echo -e "${YELLOW}[comfyui] 🚀 Starting ComfyUI on port 8188...${NC}"
 
 # Memory optimization flags
-# Options: --lowvram (less VRAM), --novram (CPU only), --cpu (force CPU), --normalvram (default)
-# On macOS, PyTorch is CPU-only, so --cpu mode is required
+# Options: --lowvram (less VRAM), --novram, --cpu (force CPU), --normalvram (default)
+# On Apple Silicon, leave empty so ComfyUI auto-selects the Metal (MPS) GPU.
 COMFYUI_MEMORY_MODE=${COMFYUI_MEMORY_MODE:-""}
 
-# Auto-detect macOS and use CPU mode if no mode specified
-if [ -z "$COMFYUI_MEMORY_MODE" ] && [[ "$OSTYPE" == "darwin"* ]]; then
-    COMFYUI_MEMORY_MODE="--cpu"
-    echo -e "${YELLOW}[comfyui] macOS detected: Using --cpu mode (required for CPU-only PyTorch)${NC}"
-elif [ -n "$COMFYUI_MEMORY_MODE" ]; then
+if [ -n "$COMFYUI_MEMORY_MODE" ]; then
     echo -e "${YELLOW}[comfyui] Using memory mode: $COMFYUI_MEMORY_MODE${NC}"
 fi
 
@@ -58,12 +54,10 @@ fi
 cd "$COMFYUI_DIR"
 export PYTHONDONTWRITEBYTECODE=1
 
-# Force CPU-only mode on macOS (disable MPS to prevent memory issues)
+# Apple Silicon: enable the Metal (MPS) GPU; fall back to CPU for any op MPS
+# doesn't support yet instead of erroring out.
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    export PYTORCH_ENABLE_MPS_FALLBACK=0
-    export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
-    # Disable MPS entirely to force CPU
-    export PYTORCH_MPS_ENABLE=0
+    export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
 # Build command with optional memory flags

@@ -17,6 +17,8 @@
     "comfyui:install-extra-samplers": "bash scripts/install-comfyui-extra-samplers.sh",
     "comfyui:install-all-samplers": "bash scripts/install-all-samplers.sh",
     "comfyui:install-creative-models": "bash scripts/install-creative-models.sh",
+    "comfyui:upscaler": "bash scripts/download-upscale-model.sh",
+    "comfyui:controlnet-tile": "bash scripts/download-controlnet-tile.sh",
     "comfyui:download-all": "bash scripts/download-all-models.sh",
     "ollama:setup": "bash scripts/setup-ollama.sh",
     "ollama:check": "bash scripts/check-ollama.sh",

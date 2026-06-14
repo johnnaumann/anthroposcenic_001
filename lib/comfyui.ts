@@ -490,6 +490,68 @@ export async function findLatestOutputImage(
 }
 
 /**
+ * Find an installed upscale (ESRGAN-style) model in comfyui/models/upscale_models.
+ * Used by the hires pass for crisp, pixel-space detail. Returns null if none found.
+ */
+export async function getAvailableUpscaleModel(): Promise<string | null> {
+  if (typeof process === 'undefined' || !process.versions?.node) return null;
+  try {
+    const { readdir, stat } = await import('fs/promises');
+    const { join } = await import('path');
+    const dir = join(process.cwd(), 'comfyui', 'models', 'upscale_models');
+    const files = await readdir(dir);
+    const models = files.filter(
+      (f) => f.endsWith('.pth') || f.endsWith('.safetensors') || f.endsWith('.pt')
+    );
+    // Prefer a sharp, detail-oriented model when several are present.
+    const preferred = models.find((m) => /ultrasharp|remacri|siax|nmkd|4x/i.test(m));
+    const pick = preferred || models[0];
+    if (!pick) return null;
+    // Guard against tiny stub/placeholder files.
+    try {
+      const { size } = await stat(join(dir, pick));
+      if (size < 1024 * 1024) return null; // < 1MB → not a real model
+    } catch {
+      /* ignore stat failure, assume usable */
+    }
+    return pick;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find an installed ControlNet model in comfyui/models/controlnet, optionally
+ * matching a kind (e.g. 'tile', 'canny', 'depth'). Returns null if none found.
+ */
+export async function getAvailableControlNet(kind?: string): Promise<string | null> {
+  if (typeof process === 'undefined' || !process.versions?.node) return null;
+  try {
+    const { readdir, stat } = await import('fs/promises');
+    const { join } = await import('path');
+    const dir = join(process.cwd(), 'comfyui', 'models', 'controlnet');
+    const files = await readdir(dir);
+    const models = files.filter(
+      (f) => f.endsWith('.safetensors') || f.endsWith('.pth') || f.endsWith('.pt')
+    );
+    const matches = kind
+      ? models.filter((m) => m.toLowerCase().includes(kind.toLowerCase()))
+      : models;
+    const pick = matches[0];
+    if (!pick) return null;
+    try {
+      const { size } = await stat(join(dir, pick));
+      if (size < 1024 * 1024) return null; // < 1MB → not a real model
+    } catch {
+      /* ignore stat failure, assume usable */
+    }
+    return pick;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Create a complete ComfyUI workflow programmatically
  * This builds a workflow that:
  * 1. Loads the input image
@@ -521,9 +583,14 @@ export async function createComfyUIWorkflow(
     width?: number; // Image width for txt2img (default: 1024)
     height?: number; // Image height for txt2img (default: 1024)
     qualityBoost?: boolean; // Append detail/quality booster tags to the positive prompt (default: true)
-    hiresFix?: boolean; // Run a second latent-upscale refine pass for added detail (default: true)
-    hiresFactor?: number; // Latent upscale multiplier for the hires refine pass (default: 1.5)
-    hiresDenoise?: number; // Denoise strength for the hires refine pass (default: 0.35)
+    hiresFix?: boolean; // Run an upscale + refine pass for added detail (default: true)
+    hiresFactor?: number; // Final upscale multiplier vs the base image (default: 1.5)
+    hiresDenoise?: number; // Denoise strength for the hires refine pass (default: auto)
+    upscaleModel?: string; // ESRGAN upscale model filename (default: auto-detected from upscale_models)
+    freeU?: boolean; // Apply FreeU_V2 for extra SD1.5 detail/contrast (default: true)
+    controlNet?: boolean; // Use ControlNet Tile in the refine pass when a model is present (default: true)
+    controlNetModel?: string; // ControlNet model filename (default: auto-detected tile model)
+    controlNetStrength?: number; // ControlNet guidance strength for the refine pass (default: 0.65)
   } = {}
 ): Promise<ComfyUIWorkflow> {
   // Get creativity preset or use individual parameters
@@ -638,200 +705,254 @@ export async function createComfyUIWorkflow(
   const txt2imgWidth = options.width || maxWidth;
   const txt2imgHeight = options.height || maxHeight;
 
-  // Quality boosters: appended to the positive prompt to reliably increase
-  // perceived detail, sharpness and vibrancy. Style-agnostic (no "photorealistic")
-  // so it works for abstract/artistic checkpoints too.
+  // Quality boosters: appended to the positive prompt to push toward crisp,
+  // high-resolution, photographic-grade micro-detail while keeping the
+  // generative/computer-art character. Style-agnostic (no "photo of ...").
   const qualityBoost = options.qualityBoost !== false;
-  const QUALITY_BOOSTER = 'highly detailed, intricate details, sharp focus, fine textures, dramatic lighting, rich vivid colors, high dynamic range, masterpiece, best quality';
+  const QUALITY_BOOSTER = 'intricate ultra-fine detail, razor-sharp focus, crisp micro-texture, highly detailed surfaces, tack-sharp, high resolution, photographic clarity, fine grain, high dynamic range, generative digital art, intricate procedural detail, masterpiece, best quality';
+  const ANTI_SOFT_NEGATIVE = 'soft focus, oversmoothed, low detail, plastic texture, motion blur';
   const cleanedDescription = description.trim().replace(/[\s,]+$/, '');
   const positivePrompt = qualityBoost
     ? `${cleanedDescription}, ${QUALITY_BOOSTER}`
     : description;
+  const finalNegativePrompt = qualityBoost
+    ? `${negativePrompt.trim().replace(/[\s,]+$/, '')}, ${ANTI_SOFT_NEGATIVE}`
+    : negativePrompt;
 
-  // Hires fix: after the first pass, upscale the latent and run a short, low-denoise
-  // refine pass. This is the single most reliable way to make the output look more
-  // detailed and "finished" than the input without a separate upscale model.
+  // FreeU_V2 sharpens and enriches SD1.5 output for free (no extra model).
+  const freeU = options.freeU !== false;
+
+  // Hires / detail pass. The biggest fix for "blurry up close" is to upscale in
+  // PIXEL space with an ESRGAN model (if installed), supersample back down to the
+  // target size, then run a higher-denoise refine so the model redraws real
+  // micro-texture — far crisper than a latent upscale. Falls back to an improved
+  // latent upscale when no upscale model is available.
   const useHires = options.hiresFix !== false;
   const hiresFactor = options.hiresFactor ?? 1.5;
-  const hiresDenoise = options.hiresDenoise ?? 0.35;
-  const hiresSteps = Math.max(12, Math.round(steps * 0.6));
+  const hiresSteps = Math.max(14, Math.round(steps * 0.55));
+  const upscaleModel = options.upscaleModel ?? (useHires ? await getAvailableUpscaleModel() : null);
 
-  // Generate unique node IDs
-  // Different node structures for img2img vs txt2img
-  const nodeIds: Record<string, string> = useImage ? {
-    loadImage: '1',
-    resizeImage: '2', // Optional - only used if useImageResize is true
-    loadCheckpoint: '3',
-    clipTextEncode: '4',
-    clipTextEncodeNegative: '5',
-    vaeEncode: '6',
-    kSampler: '7',
-    vaeDecode: '8',
-    saveImage: '9',
-    latentUpscale: '10', // Hires fix (only used if useHires is true)
-    kSampler2: '11', // Hires refine pass (only used if useHires is true)
-  } : {
-    emptyLatentImage: '1',
-    loadCheckpoint: '2',
-    clipTextEncode: '3',
-    clipTextEncodeNegative: '4',
-    kSampler: '5',
-    vaeDecode: '6',
-    saveImage: '7',
-    latentUpscale: '8', // Hires fix (only used if useHires is true)
-    kSampler2: '9', // Hires refine pass (only used if useHires is true)
+  // ControlNet Tile (SD1.5): guides the refine pass so it can run a HIGHER denoise —
+  // redrawing genuine micro-texture — without drifting off the upscaled structure.
+  // Requires the ESRGAN image path (it conditions on the upscaled image).
+  const controlNetEnabled = options.controlNet !== false;
+  const tileModel = controlNetEnabled && useHires
+    ? (options.controlNetModel ?? (await getAvailableControlNet('tile')))
+    : null;
+  const useTileRefine = !!(tileModel && upscaleModel);
+  const controlNetStrength = options.controlNetStrength ?? 0.65;
+
+  // Refine denoise: tile-guided refine can go hard (structure is held); plain ESRGAN
+  // refine stays moderate; the latent fallback needs more to overcome its softness.
+  const hiresDenoise = options.hiresDenoise ?? (useTileRefine ? 0.55 : upscaleModel ? 0.4 : 0.5);
+
+  // ── Assemble the workflow graph ──────────────────────────────────────────────
+  // Node IDs are arbitrary string keys; links are [nodeId, outputSlot].
+  const workflow: ComfyUIWorkflow = {};
+
+  // Checkpoint → MODEL[0], CLIP[1], VAE[2]
+  workflow['ckpt'] = {
+    class_type: 'CheckpointLoaderSimple',
+    inputs: { ckpt_name: checkpoint },
+    _meta: { title: 'Load Checkpoint' },
+  };
+  const vae: [string, number] = ['ckpt', 2];
+
+  // Optional FreeU on the model path (feeds every sampler).
+  let modelSrc: [string, number] = ['ckpt', 0];
+  if (freeU) {
+    workflow['freeu'] = {
+      class_type: 'FreeU_V2',
+      inputs: { model: ['ckpt', 0], b1: 1.2, b2: 1.3, s1: 0.9, s2: 0.2 },
+      _meta: { title: 'FreeU V2' },
+    };
+    modelSrc = ['freeu', 0];
+  }
+
+  // Prompts
+  workflow['pos'] = {
+    class_type: 'CLIPTextEncode',
+    inputs: { text: positivePrompt, clip: ['ckpt', 1] },
+    _meta: { title: 'CLIP Text Encode (Positive)' },
+  };
+  workflow['neg'] = {
+    class_type: 'CLIPTextEncode',
+    inputs: { text: finalNegativePrompt, clip: ['ckpt', 1] },
+    _meta: { title: 'CLIP Text Encode (Negative)' },
   };
 
-  // Determine image source (resized or direct) for img2img
-  const imageSource = useImageResize ? nodeIds.resizeImage : nodeIds.loadImage;
-
-  // Build the workflow
-  const workflow: ComfyUIWorkflow = {
-    // For img2img: Load Image
-    // For txt2img: Empty Latent Image
-    ...(useImage ? {
-      [nodeIds.loadImage]: {
-        class_type: 'LoadImage',
+  // Base latent: img2img encodes the input image; txt2img uses an empty latent.
+  let baseLatent: [string, number];
+  if (useImage) {
+    workflow['load'] = {
+      class_type: 'LoadImage',
+      inputs: { image: imageFilename! },
+      _meta: { title: 'Load Image' },
+    };
+    let pixelSrc: [string, number] = ['load', 0];
+    if (useImageResize) {
+      workflow['resize'] = {
+        class_type: 'ImageScale',
         inputs: {
-          image: imageFilename!,
+          image: ['load', 0],
+          upscale_method: 'lanczos',
+          crop: 'disabled',
+          width: maxWidth,
+          height: maxHeight,
         },
-        _meta: { title: 'Load Image' },
-      },
-      // Node 2: Resize Image (Optional - only if useImageResize is true)
-      ...(useImageResize ? {
-        [nodeIds.resizeImage]: {
-          class_type: 'ImageScale',
-          inputs: {
-            image: [nodeIds.loadImage, 0],
-            upscale_method: 'lanczos',
-            crop: 'disabled',
-            width: maxWidth,
-            height: maxHeight,
-          },
-          _meta: { title: 'Resize Image (Optional)' },
-        },
-      } : {}),
-    } : {
-      [nodeIds.emptyLatentImage]: {
-        class_type: 'EmptyLatentImage',
+        _meta: { title: 'Resize Image' },
+      };
+      pixelSrc = ['resize', 0];
+    }
+    workflow['enc'] = {
+      class_type: 'VAEEncode',
+      inputs: { pixels: pixelSrc, vae },
+      _meta: { title: 'VAE Encode' },
+    };
+    baseLatent = ['enc', 0];
+  } else {
+    workflow['empty'] = {
+      class_type: 'EmptyLatentImage',
+      inputs: { width: txt2imgWidth, height: txt2imgHeight, batch_size: 1 },
+      _meta: { title: 'Empty Latent Image (txt2img)' },
+    };
+    baseLatent = ['empty', 0];
+  }
+
+  // Base sampler
+  workflow['ksampler'] = {
+    class_type: 'KSampler',
+    inputs: {
+      seed,
+      steps,
+      cfg: cfgScale,
+      sampler_name: sampler,
+      scheduler,
+      denoise: useImage ? denoiseStrength : 1.0, // full denoise for txt2img
+      positive: ['pos', 0],
+      negative: ['neg', 0],
+      model: modelSrc,
+      latent_image: baseLatent,
+    },
+    _meta: { title: 'KSampler (Base)' },
+  };
+
+  // Decode the base pass; the hires branch below may supersede the output.
+  workflow['decode'] = {
+    class_type: 'VAEDecode',
+    inputs: { samples: ['ksampler', 0], vae },
+    _meta: { title: 'VAE Decode (Base)' },
+  };
+  let imageOut: [string, number] = ['decode', 0];
+
+  if (useHires && upscaleModel) {
+    // Best path: pixel-space ESRGAN upscale → supersample down to target → refine.
+    // This synthesises genuine crisp micro-texture instead of interpolating latents.
+    workflow['upscale_model'] = {
+      class_type: 'UpscaleModelLoader',
+      inputs: { model_name: upscaleModel },
+      _meta: { title: 'Load Upscale Model' },
+    };
+    workflow['upscale'] = {
+      class_type: 'ImageUpscaleWithModel',
+      inputs: { upscale_model: ['upscale_model', 0], image: ['decode', 0] },
+      _meta: { title: 'ESRGAN Upscale' },
+    };
+    // ESRGAN models output ~4×; scale the result to hiresFactor of the original.
+    workflow['downscale'] = {
+      class_type: 'ImageScaleBy',
+      inputs: { image: ['upscale', 0], upscale_method: 'lanczos', scale_by: hiresFactor / 4 },
+      _meta: { title: 'Supersample Downscale' },
+    };
+    workflow['enc_hires'] = {
+      class_type: 'VAEEncode',
+      inputs: { pixels: ['downscale', 0], vae },
+      _meta: { title: 'VAE Encode (Hires)' },
+    };
+    // ControlNet Tile conditions the refine on the upscaled image, so a higher
+    // denoise redraws crisp texture while preserving the structure.
+    let refinePos: [string, number] = ['pos', 0];
+    let refineNeg: [string, number] = ['neg', 0];
+    if (useTileRefine) {
+      workflow['cn_loader'] = {
+        class_type: 'ControlNetLoader',
+        inputs: { control_net_name: tileModel! },
+        _meta: { title: 'Load ControlNet (Tile)' },
+      };
+      workflow['cn_apply'] = {
+        class_type: 'ControlNetApplyAdvanced',
         inputs: {
-          width: txt2imgWidth,
-          height: txt2imgHeight,
-          batch_size: 1,
+          positive: ['pos', 0],
+          negative: ['neg', 0],
+          control_net: ['cn_loader', 0],
+          image: ['downscale', 0],
+          strength: controlNetStrength,
+          start_percent: 0,
+          end_percent: 0.8,
         },
-        _meta: { title: 'Empty Latent Image (txt2img)' },
-      },
-    }),
-
-    // Node 3: Load Checkpoint (Model)
-    [nodeIds.loadCheckpoint]: {
-      class_type: 'CheckpointLoaderSimple',
-      inputs: {
-        ckpt_name: checkpoint,
-      },
-      _meta: { title: 'Load Checkpoint' },
-    },
-
-    // Node 4: CLIP Text Encode (Positive Prompt)
-    [nodeIds.clipTextEncode]: {
-      class_type: 'CLIPTextEncode',
-      inputs: {
-        text: positivePrompt,
-        clip: [nodeIds.loadCheckpoint, 1],
-      },
-      _meta: { title: 'CLIP Text Encode (Positive)' },
-    },
-
-    // Node 5: CLIP Text Encode (Negative Prompt)
-    [nodeIds.clipTextEncodeNegative]: {
-      class_type: 'CLIPTextEncode',
-      inputs: {
-        text: negativePrompt,
-        clip: [nodeIds.loadCheckpoint, 1],
-      },
-      _meta: { title: 'CLIP Text Encode (Negative)' },
-    },
-
-    // Node 6: VAE Encode (Image to Latent) - Only for img2img
-    // For txt2img, we use EmptyLatentImage directly
-    ...(useImage ? {
-      [nodeIds.vaeEncode]: {
-        class_type: 'VAEEncode',
-        inputs: {
-          pixels: [imageSource, 0], // Connect to image source (resized if enabled, otherwise direct)
-          vae: [nodeIds.loadCheckpoint, 2],
-        },
-        _meta: { title: 'VAE Encode' },
-      },
-    } : {}),
-
-    // Node 7: KSampler (Image Generation/Processing)
-    [nodeIds.kSampler]: {
+        _meta: { title: 'Apply ControlNet (Tile)' },
+      };
+      refinePos = ['cn_apply', 0];
+      refineNeg = ['cn_apply', 1];
+    }
+    workflow['ksampler_hires'] = {
       class_type: 'KSampler',
       inputs: {
-        seed: seed,
-        steps: steps,
+        seed,
+        steps: hiresSteps,
         cfg: cfgScale,
         sampler_name: sampler,
-        scheduler: scheduler,
-        denoise: useImage ? denoiseStrength : 1.0, // Full denoise for txt2img
-        positive: [nodeIds.clipTextEncode, 0],
-        negative: [nodeIds.clipTextEncodeNegative, 0],
-        model: [nodeIds.loadCheckpoint, 0],
-        latent_image: useImage ? [nodeIds.vaeEncode, 0] : [nodeIds.emptyLatentImage, 0],
+        scheduler,
+        denoise: hiresDenoise,
+        positive: refinePos,
+        negative: refineNeg,
+        model: modelSrc,
+        latent_image: ['enc_hires', 0],
       },
-      _meta: { title: 'KSampler' },
-    },
-
-    // Hires fix: upscale the first-pass latent, then refine it with a short
-    // low-denoise pass. Adds detail/sharpness beyond the input resolution.
-    ...(useHires ? {
-      [nodeIds.latentUpscale]: {
-        class_type: 'LatentUpscaleBy',
-        inputs: {
-          samples: [nodeIds.kSampler, 0],
-          upscale_method: 'nearest-exact',
-          scale_by: hiresFactor,
-        },
-        _meta: { title: 'Hires Latent Upscale' },
-      },
-      [nodeIds.kSampler2]: {
-        class_type: 'KSampler',
-        inputs: {
-          seed: seed,
-          steps: hiresSteps,
-          cfg: cfgScale,
-          sampler_name: sampler,
-          scheduler: scheduler,
-          denoise: hiresDenoise,
-          positive: [nodeIds.clipTextEncode, 0],
-          negative: [nodeIds.clipTextEncodeNegative, 0],
-          model: [nodeIds.loadCheckpoint, 0],
-          latent_image: [nodeIds.latentUpscale, 0],
-        },
-        _meta: { title: 'Hires Refine Sampler' },
-      },
-    } : {}),
-
-    // Node 8: VAE Decode (Latent to Image) - decodes the final (refined) latent
-    [nodeIds.vaeDecode]: {
+      _meta: { title: 'Hires Refine Sampler' },
+    };
+    workflow['decode_hires'] = {
       class_type: 'VAEDecode',
+      inputs: { samples: ['ksampler_hires', 0], vae },
+      _meta: { title: 'VAE Decode (Hires)' },
+    };
+    imageOut = ['decode_hires', 0];
+  } else if (useHires) {
+    // Fallback (no upscale model): latent upscale (bislerp) + higher-denoise refine.
+    workflow['latent_upscale'] = {
+      class_type: 'LatentUpscaleBy',
+      inputs: { samples: ['ksampler', 0], upscale_method: 'bislerp', scale_by: hiresFactor },
+      _meta: { title: 'Latent Upscale' },
+    };
+    workflow['ksampler_hires'] = {
+      class_type: 'KSampler',
       inputs: {
-        samples: useHires ? [nodeIds.kSampler2, 0] : [nodeIds.kSampler, 0],
-        vae: [nodeIds.loadCheckpoint, 2],
+        seed,
+        steps: hiresSteps,
+        cfg: cfgScale,
+        sampler_name: sampler,
+        scheduler,
+        denoise: hiresDenoise,
+        positive: ['pos', 0],
+        negative: ['neg', 0],
+        model: modelSrc,
+        latent_image: ['latent_upscale', 0],
       },
-      _meta: { title: 'VAE Decode' },
-    },
+      _meta: { title: 'Hires Refine Sampler' },
+    };
+    workflow['decode_hires'] = {
+      class_type: 'VAEDecode',
+      inputs: { samples: ['ksampler_hires', 0], vae },
+      _meta: { title: 'VAE Decode (Hires)' },
+    };
+    imageOut = ['decode_hires', 0];
+  }
 
-    // Node 9: Save Image
-    [nodeIds.saveImage]: {
-      class_type: 'SaveImage',
-      inputs: {
-        filename_prefix: 'anthroposcenic',
-        images: [nodeIds.vaeDecode, 0],
-      },
-      _meta: { title: 'Save Image' },
-    },
+  // Save
+  workflow['save'] = {
+    class_type: 'SaveImage',
+    inputs: { filename_prefix: 'anthroposcenic', images: imageOut },
+    _meta: { title: 'Save Image' },
   };
 
   return workflow;
