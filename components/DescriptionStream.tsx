@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
+import { countPromptTags, countPromptWords } from '@/lib/prompt-limits';
 
 interface DescriptionStreamProps {
   imageId: string | null;
@@ -147,7 +148,13 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
 
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">
-          {isStreaming ? 'Streaming…' : description ? `${description.length} characters` : 'Waiting for image'}
+          {isStreaming
+            ? description
+              ? `Streaming… · ${countPromptWords(description)} words · ${countPromptTags(description)} tags`
+              : 'Streaming…'
+            : description
+              ? `${countPromptWords(description)} words · ${countPromptTags(description)} tags`
+              : 'Waiting for image'}
         </span>
         {description && !isStreaming && (
           <div className="flex gap-2">

@@ -1,5 +1,11 @@
 import { OllamaResponse } from '@/types';
 import { getDefaultOllamaModel, isValidVisionModel } from './models';
+import {
+  isPromptAtLimit,
+  MAX_SD_PROMPT_TAGS,
+  MAX_SD_PROMPT_WORDS,
+  wouldExceedPromptLimit,
+} from './prompt-limits';
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 // Use model from config, fallback to env var, then to default
@@ -10,6 +16,8 @@ export interface OllamaStreamOptions {
   prompt: string;
   images?: string[]; // base64 encoded images
   stream?: boolean;
+  /** Stop streaming once the response reaches SD prompt limits. */
+  capPromptLength?: boolean;
 }
 
 /**
@@ -135,6 +143,7 @@ export async function* streamOllamaResponse(
     let buffer = '';
     let tokenCount = 0;
     let hasReceivedData = false;
+    let accumulated = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -154,8 +163,25 @@ export async function* streamOllamaResponse(
           try {
             const data: OllamaResponse = JSON.parse(line);
             if (data.response) {
+              if (options.capPromptLength && wouldExceedPromptLimit(accumulated, data.response)) {
+                console.log(
+                  `[Ollama] Prompt cap reached (${MAX_SD_PROMPT_WORDS} words / ${MAX_SD_PROMPT_TAGS} tags), stopping stream`
+                );
+                await reader.cancel();
+                return;
+              }
+
+              accumulated += data.response;
               tokenCount++;
               yield data.response;
+
+              if (options.capPromptLength && isPromptAtLimit(accumulated)) {
+                console.log(
+                  `[Ollama] Prompt cap reached (${MAX_SD_PROMPT_WORDS} words / ${MAX_SD_PROMPT_TAGS} tags), stopping stream`
+                );
+                await reader.cancel();
+                return;
+              }
             }
             if (data.done) {
               console.log('[Ollama] Stream marked as done. Total tokens:', tokenCount);

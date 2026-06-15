@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { streamOllamaResponse, imageToBase64 } from '@/lib/ollama';
+import { truncatePromptAtLimit } from '@/lib/prompt-limits';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { DescribeRequest } from '@/types';
 
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
           prompt: prompt,
           images: [imageBase64],
           stream: true,
+          capPromptLength: true,
         })) {
           tokenCount++;
           fullResponse += token;
@@ -152,7 +154,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Clean the response - remove any markdown or extra formatting
-        let description = fullResponse.trim();
+        let description = truncatePromptAtLimit(fullResponse.trim());
         description = description.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
         description = description.replace(/^#{1,6}\s+/gm, '');
         description = description.trim();
