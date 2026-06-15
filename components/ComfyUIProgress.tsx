@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Image as ImageIcon, ArrowRight } from 'lucide-react';
@@ -175,25 +177,22 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
           </div>
 
           {imageId && (
-            <label
-              htmlFor="useImage"
-              className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border p-4"
-            >
-              <span className="flex items-center gap-3">
-                <input
-                  type="checkbox"
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+              <div className="flex items-center gap-3">
+                <Checkbox
                   id="useImage"
                   checked={useImage}
-                  onChange={(e) => setUseImage(e.target.checked)}
+                  onCheckedChange={(value) => setUseImage(value === true)}
                   disabled={isProcessing}
-                  className="h-4 w-4 accent-[hsl(var(--foreground))]"
                 />
-                <span className="text-sm">Use uploaded image (img2img)</span>
-              </span>
+                <Label htmlFor="useImage" className="cursor-pointer font-normal">
+                  Use uploaded image (img2img)
+                </Label>
+              </div>
               <span className="text-xs text-muted-foreground">
                 {useImage ? 'Reinterpret the upload' : 'Generate from prompt only'}
               </span>
-            </label>
+            </div>
           )}
 
           <Button

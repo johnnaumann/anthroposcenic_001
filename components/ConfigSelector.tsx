@@ -2,6 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight } from 'lucide-react';
@@ -35,22 +45,21 @@ interface ComfyUIConfigOptions {
   };
 }
 
-const fieldClass =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50';
-
 function FieldLabel({ label, tip }: { label: string; tip: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
+          <Button
             type="button"
-            className="text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground/60 hover:text-muted-foreground"
             aria-label={`About ${label}`}
           >
-            <HelpCircle className="h-3.5 w-3.5" />
-          </button>
+            <HelpCircle />
+          </Button>
         </TooltipTrigger>
         <TooltipContent>{tip}</TooltipContent>
       </Tooltip>
@@ -58,34 +67,66 @@ function FieldLabel({ label, tip }: { label: string; tip: string }) {
   );
 }
 
-function Toggle({
+function ConfigSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ConfigToggle({
+  id,
   label,
   checked,
   onChange,
   disabled,
 }: {
+  id: string;
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
   return (
-    <label
+    <div
       className={cn(
-        'flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-sm transition-colors',
+        'flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 transition-colors',
         checked ? 'bg-accent/40' : 'hover:bg-accent/20',
         disabled && 'cursor-not-allowed opacity-50'
       )}
     >
-      <input
-        type="checkbox"
+      <Checkbox
+        id={id}
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onCheckedChange={(value) => onChange(value === true)}
         disabled={disabled}
-        className="h-4 w-4 accent-foreground"
       />
-      {label}
-    </label>
+      <Label htmlFor={id} className="cursor-pointer font-normal">
+        {label}
+      </Label>
+    </div>
   );
 }
 
@@ -104,7 +145,6 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
     'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate'
   );
 
-  // Detail & refinement
   const [hiresFix, setHiresFix] = useState(true);
   const [hiresFactor, setHiresFactor] = useState(1.5);
   const [hiresDenoise, setHiresDenoise] = useState(0.45);
@@ -123,17 +163,14 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         const data = await response.json();
         setConfigOptions(data);
 
-        // Prioritize DreamShaper if available, else first checkpoint
         if (data.checkpoints.length > 0) {
           const dreamshaperIndex = data.checkpoints.findIndex((cp: string) => cp.includes('DreamShaper'));
           setCheckpoint(dreamshaperIndex >= 0 ? data.checkpoints[dreamshaperIndex] : data.checkpoints[0]);
         }
-        // Sampler: prefer dpmpp_2m (crisper detail), fall back gracefully
         if (data.samplers.length > 0) {
           const preferredSampler = data.defaults?.sampler || 'dpmpp_2m';
           setSampler(data.samplers.includes(preferredSampler) ? preferredSampler : data.samplers[0]);
         }
-        // Scheduler: prefer karras for higher-quality detail
         const preferredScheduler = data.defaults?.scheduler || 'karras';
         setScheduler(
           data.schedulers?.includes(preferredScheduler) ? preferredScheduler : data.schedulers?.[0] || 'normal'
@@ -143,7 +180,6 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         setDenoiseStrength(data.defaults.denoiseStrength);
         setNegativePrompt(data.defaults.negativePrompt);
 
-        // Detail & refinement defaults (tolerate an older server without them)
         const d = data.defaults || {};
         if (typeof d.hiresFix === 'boolean') setHiresFix(d.hiresFix);
         if (typeof d.hiresFactor === 'number') setHiresFactor(d.hiresFactor);
@@ -200,103 +236,81 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
 
   return (
     <div className="space-y-6">
-      {/* Model */}
       <div className="space-y-2">
         <FieldLabel
           label="Model"
           tip="The base model that sets the artistic style and capabilities. Different checkpoints produce different looks."
         />
-        <select
+        <ConfigSelect
           value={checkpoint}
-          onChange={(e) => setCheckpoint(e.target.value)}
+          onValueChange={setCheckpoint}
+          options={configOptions.checkpoints}
+          placeholder="Select model"
           disabled={disabled}
-          className={fieldClass}
-        >
-          {configOptions.checkpoints.map((cp) => (
-            <option key={cp} value={cp}>
-              {cp}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
-      {/* Sampler + Scheduler */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <FieldLabel label="Sampler" tip="The sampling algorithm. dpmpp_2m gives crisp, detailed results." />
-          <select
+          <ConfigSelect
             value={sampler}
-            onChange={(e) => setSampler(e.target.value)}
+            onValueChange={setSampler}
+            options={configOptions.samplers}
+            placeholder="Select sampler"
             disabled={disabled}
-            className={fieldClass}
-          >
-            {configOptions.samplers.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <div className="space-y-2">
           <FieldLabel label="Scheduler" tip="Controls how noise is reduced. 'karras' favors fine detail." />
-          <select
+          <ConfigSelect
             value={scheduler}
-            onChange={(e) => setScheduler(e.target.value)}
+            onValueChange={setScheduler}
+            options={configOptions.schedulers}
+            placeholder="Select scheduler"
             disabled={disabled}
-            className={fieldClass}
-          >
-            {configOptions.schedulers.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
-      {/* Steps + CFG + Denoise */}
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <FieldLabel label="Steps" tip="Sampling iterations. More steps = more refinement, slower. 30–40 is a good range." />
-          <input
+          <Input
             type="number"
             value={steps}
-            onChange={(e) => setSteps(parseInt(e.target.value) || 32)}
-            min="10"
-            max="100"
+            onChange={(e) => setSteps(parseInt(e.target.value, 10) || 32)}
+            min={10}
+            max={100}
             disabled={disabled}
-            className={fieldClass}
           />
         </div>
         <div className="space-y-2">
           <FieldLabel label="CFG" tip="Prompt adherence. Lower = more creative, higher = sticks to the prompt. 6–8 is balanced." />
-          <input
+          <Input
             type="number"
             value={cfgScale}
             onChange={(e) => setCfgScale(parseFloat(e.target.value) || 7)}
-            min="1"
-            max="20"
-            step="0.1"
+            min={1}
+            max={20}
+            step={0.1}
             disabled={disabled}
-            className={fieldClass}
           />
         </div>
         <div className="space-y-2">
           <FieldLabel label="Denoise" tip="How much the source image changes (img2img). 0.6 reinterprets boldly while keeping composition." />
-          <input
+          <Input
             type="number"
             value={denoiseStrength}
             onChange={(e) => setDenoiseStrength(parseFloat(e.target.value) || 0.6)}
-            min="0"
-            max="1"
-            step="0.05"
+            min={0}
+            max={1}
+            step={0.05}
             disabled={disabled}
-            className={fieldClass}
           />
         </div>
       </div>
 
-      {/* Negative prompt */}
       <div className="space-y-2">
         <FieldLabel label="Negative prompt" tip="Things to avoid. Pre-filled to suppress common artifacts and mush." />
         <Textarea
@@ -308,62 +322,57 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         />
       </div>
 
-      {/* Detail & refinement */}
       <div className="space-y-3 border-t border-border pt-5">
         <FieldLabel
           label="Detail & refinement"
           tip="Post-processing that sharpens texture and adds fine detail. Tuned for your GPU — switch off for faster, lighter runs."
         />
         <div className="grid grid-cols-2 gap-2">
-          <Toggle label="Hi-res detail pass" checked={hiresFix} onChange={setHiresFix} disabled={disabled} />
-          <Toggle label="ControlNet Tile" checked={controlNet} onChange={setControlNet} disabled={disabled || !hiresFix} />
-          <Toggle label="FreeU boost" checked={freeU} onChange={setFreeU} disabled={disabled} />
-          <Toggle label="Quality tags" checked={qualityBoost} onChange={setQualityBoost} disabled={disabled} />
+          <ConfigToggle id="hiresFix" label="Hi-res detail pass" checked={hiresFix} onChange={setHiresFix} disabled={disabled} />
+          <ConfigToggle id="controlNet" label="ControlNet Tile" checked={controlNet} onChange={setControlNet} disabled={disabled || !hiresFix} />
+          <ConfigToggle id="freeU" label="FreeU boost" checked={freeU} onChange={setFreeU} disabled={disabled} />
+          <ConfigToggle id="qualityBoost" label="Quality tags" checked={qualityBoost} onChange={setQualityBoost} disabled={disabled} />
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <FieldLabel label="Upscale ×" tip="Final size vs the base image. 2.0 ≈ 2560px from a 1280px base. Higher = sharper and slower." />
-            <input
+            <Input
               type="number"
               value={hiresFactor}
               onChange={(e) => setHiresFactor(parseFloat(e.target.value) || 1.5)}
-              min="1"
-              max="4"
-              step="0.25"
+              min={1}
+              max={4}
+              step={0.25}
               disabled={disabled || !hiresFix}
-              className={fieldClass}
             />
           </div>
           <div className="space-y-2">
             <FieldLabel label="Refine denoise" tip="How much texture the refine pass redraws. Higher = more detail/change; lower = more faithful. 0.5–0.6 is a good range." />
-            <input
+            <Input
               type="number"
               value={hiresDenoise}
               onChange={(e) => setHiresDenoise(parseFloat(e.target.value) || 0.45)}
-              min="0"
-              max="1"
-              step="0.05"
+              min={0}
+              max={1}
+              step={0.05}
               disabled={disabled || !hiresFix}
-              className={fieldClass}
             />
           </div>
           <div className="space-y-2">
             <FieldLabel label="Tile strength" tip="How strongly ControlNet Tile holds the original structure during refine. Higher = more faithful." />
-            <input
+            <Input
               type="number"
               value={controlNetStrength}
               onChange={(e) => setControlNetStrength(parseFloat(e.target.value) || 0.65)}
-              min="0"
-              max="2"
-              step="0.05"
+              min={0}
+              max={2}
+              step={0.05}
               disabled={disabled || !hiresFix || !controlNet}
-              className={fieldClass}
             />
           </div>
         </div>
       </div>
 
-      {/* Action */}
       <div className="flex items-center justify-between gap-4">
         <p className="truncate text-xs text-muted-foreground">
           {checkpoint} · {steps} steps · denoise {denoiseStrength}

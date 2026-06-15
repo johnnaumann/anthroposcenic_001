@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { UploadResponse } from '@/types';
 import { Upload, X, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface ImageUploadZoneProps {
@@ -156,29 +157,33 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
             <div className="relative mx-auto w-fit">
               <img src={preview} alt="Preview" className="max-h-72 rounded-lg" />
               {!disabled && (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={handleRemove}
                   disabled={isRemoving}
-                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur transition-colors hover:bg-accent disabled:opacity-50"
+                  className="absolute right-2 top-2 bg-background/80 backdrop-blur"
                   title="Remove image"
                   aria-label="Remove image"
                 >
-                  <X className="h-4 w-4" />
-                </button>
+                  <X />
+                </Button>
               )}
             </div>
             <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <span>Image ready</span>
               {!disabled && (
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="sm"
                   onClick={handleRemove}
                   disabled={isRemoving}
-                  className="underline underline-offset-4 transition-colors hover:text-foreground disabled:opacity-50"
+                  className="h-auto p-0 text-muted-foreground"
                 >
                   {isRemoving ? 'Removing…' : 'Remove'}
-                </button>
+                </Button>
               )}
             </div>
           </div>
