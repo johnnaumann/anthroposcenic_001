@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { getAvailableSamplers } from '@/lib/comfyui';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
@@ -76,7 +77,7 @@ export async function GET() {
         // 0.6 reinterprets the image enough to be genuinely "interesting" while
         // keeping the original composition; the hires-fix pass restores fine detail.
         denoiseStrength: 0.6,
-        negativePrompt: 'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate',
+        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         // Detail & refinement. Tuned for Apple-Silicon MPS: the ESRGAN + refine
         // pass adds the crisp texture; ControlNet Tile is OFF by default because
         // it's very slow on MPS at hi-res (opt-in when you can wait). Push the

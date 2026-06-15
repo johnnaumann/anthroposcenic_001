@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { HelpCircle, Loader2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { ComfyUIConfig } from '@/types';
+import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { cn } from '@/lib/utils';
 
 interface ConfigSelectorProps {
@@ -142,9 +143,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
   const [steps, setSteps] = useState(32);
   const [cfgScale, setCfgScale] = useState(7);
   const [denoiseStrength, setDenoiseStrength] = useState(0.6);
-  const [negativePrompt, setNegativePrompt] = useState(
-    'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate'
-  );
+  const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE_PROMPT);
 
   const [hiresFix, setHiresFix] = useState(true);
   const [hiresFactor, setHiresFactor] = useState(1.5);
@@ -315,7 +314,10 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
       </div>
 
       <div className="space-y-2">
-        <FieldLabel label="Negative prompt" tip="Things to avoid. Pre-filled to suppress common artifacts and mush." />
+        <FieldLabel
+          label="Negative prompt"
+          tip="Things to avoid. Pre-filled to suppress faces, people, animals, and common artifacts."
+        />
         <Textarea
           value={negativePrompt}
           onChange={(e) => setNegativePrompt(e.target.value)}
