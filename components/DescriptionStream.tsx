@@ -151,7 +151,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
         </span>
         {description && !isStreaming && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={copyToClipboard}>
+            <Button variant="secondary" size="sm" onClick={copyToClipboard}>
               <Copy />
               Copy
             </Button>
