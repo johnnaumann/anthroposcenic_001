@@ -341,6 +341,12 @@ export async function POST(request: NextRequest) {
       // Queue the workflow
       const queueResponse = await queueComfyUIWorkflow(workflow);
       const promptId = queueResponse.prompt_id;
+      const jobStartTime = Date.now();
+
+      sendStreamMessage(controller, {
+        type: 'meta',
+        data: { promptId, jobStartTime },
+      });
 
       sendStreamMessage(controller, {
         type: 'status',
@@ -363,26 +369,24 @@ export async function POST(request: NextRequest) {
         if (update.status === 'complete') {
           if (update.imageUrl) {
             console.log(`[Process Route] ✅ Job complete! Sending image URL to frontend: ${update.imageUrl}`);
+            streamOpen = sendStreamMessage(controller, {
+              type: 'image',
+              data: update.imageUrl,
+            });
             if (streamOpen) {
-              streamOpen = sendStreamMessage(controller, {
-                type: 'image',
-                data: update.imageUrl,
+              sendStreamMessage(controller, {
+                type: 'done',
+                data: 'Processing complete',
               });
-              if (streamOpen) {
-                sendStreamMessage(controller, {
-                  type: 'done',
-                  data: 'Processing complete',
-                });
-                closeStream(controller);
-              }
+              closeStream(controller);
             }
             return;
           } else {
             // Job completed but no image URL - try to find it
             console.warn(`[Process Route] Job completed but no imageUrl in update, attempting to find image...`);
             const { findLatestOutputImage } = await import('@/lib/comfyui');
-            const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', Date.now() - 300000); // Check last 5 minutes
-            if (foundImage && streamOpen) {
+            const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', jobStartTime);
+            if (foundImage) {
               console.log(`[Process Route] Found image via fallback: ${foundImage.imageUrl}`);
               streamOpen = sendStreamMessage(controller, {
                 type: 'image',
@@ -396,7 +400,7 @@ export async function POST(request: NextRequest) {
                 closeStream(controller);
               }
               return;
-            } else if (!foundImage && streamOpen) {
+            } else if (streamOpen) {
               console.error(`[Process Route] Job completed but could not find image file`);
               sendStreamError(controller, 'Processing completed but image not found. Check ComfyUI output directory.');
               return;
@@ -541,10 +545,10 @@ export async function POST(request: NextRequest) {
       }
       
       // If we exit the loop without a complete status, check one more time
-      if (lastUpdate && lastUpdate.status !== 'complete' && streamOpen) {
+      if (lastUpdate && lastUpdate.status !== 'complete') {
         console.warn(`[Process Route] Polling loop ended without completion. Last status: ${lastUpdate.status}`);
         const { findLatestOutputImage } = await import('@/lib/comfyui');
-        const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', Date.now() - 300000);
+        const foundImage = await findLatestOutputImage(promptId, 'anthroposcenic', jobStartTime);
         if (foundImage) {
           console.log(`[Process Route] Found image after polling ended: ${foundImage.imageUrl}`);
           streamOpen = sendStreamMessage(controller, {

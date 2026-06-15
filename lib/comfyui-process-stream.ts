@@ -2,6 +2,7 @@ import { ComfyUIConfig } from '@/types';
 
 export type ProcessStreamEvent =
   | { type: 'status'; data: string }
+  | { type: 'meta'; data: { promptId: string; jobStartTime: number } }
   | { type: 'progress'; data: unknown }
   | { type: 'image'; data: string }
   | { type: 'done' }
@@ -9,9 +10,16 @@ export type ProcessStreamEvent =
 
 type Listener = (event: ProcessStreamEvent) => void;
 
+interface StreamState {
+  completed: boolean;
+  promptId: string | null;
+  jobStartTime: number | null;
+}
+
 interface ActiveRun {
   listeners: Set<Listener>;
   abortController: AbortController;
+  terminalEvent?: ProcessStreamEvent;
 }
 
 const activeRuns = new Map<string, ActiveRun>();
@@ -20,6 +28,133 @@ function emit(run: ActiveRun, event: ProcessStreamEvent) {
   run.listeners.forEach((listener) => {
     listener(event);
   });
+}
+
+function finishRun(run: ActiveRun, event: ProcessStreamEvent) {
+  run.terminalEvent = event;
+  emit(run, event);
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function recoverProcessResult(
+  promptId: string,
+  jobStartTime: number,
+  signal: AbortSignal
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 45; attempt++) {
+    if (signal.aborted) return null;
+    if (attempt > 0) {
+      await sleep(1000);
+    }
+
+    try {
+      const params = new URLSearchParams({
+        promptId,
+        since: String(jobStartTime),
+      });
+      const response = await fetch(`/api/comfyui/process/result?${params}`, { signal });
+      if (response.ok) {
+        const data = (await response.json()) as { imageUrl?: string };
+        if (data.imageUrl) {
+          return data.imageUrl;
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null;
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseStreamPayload(run: ActiveRun, state: StreamState, payload: string) {
+  if (!payload.startsWith('data: ')) return;
+
+  try {
+    const data = JSON.parse(payload.slice(6));
+
+    if (data.type === 'meta' && data.data?.promptId) {
+      const resolvedPromptId = String(data.data.promptId);
+      const resolvedJobStartTime =
+        typeof data.data.jobStartTime === 'number'
+          ? data.data.jobStartTime
+          : Date.now();
+      state.promptId = resolvedPromptId;
+      state.jobStartTime = resolvedJobStartTime;
+      emit(run, {
+        type: 'meta',
+        data: { promptId: resolvedPromptId, jobStartTime: resolvedJobStartTime },
+      });
+    } else if (data.type === 'status' && data.data) {
+      emit(run, { type: 'status', data: String(data.data) });
+    } else if (data.type === 'progress') {
+      emit(run, { type: 'progress', data: data.data });
+    } else if (data.type === 'image' && data.data) {
+      state.completed = true;
+      finishRun(run, { type: 'image', data: data.data });
+    } else if (data.type === 'done') {
+      emit(run, { type: 'done' });
+    } else if (data.type === 'error') {
+      throw new Error(data.error || 'Unknown error');
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      console.warn('[ComfyUIProcessStream] Failed to parse message:', payload, error);
+    } else {
+      throw error;
+    }
+  }
+}
+
+function processStreamLines(
+  run: ActiveRun,
+  state: StreamState,
+  chunk: string,
+  flush = false
+): string {
+  let buffer = chunk;
+  const lines = buffer.split('\n');
+  buffer = flush ? '' : lines.pop() || '';
+
+  for (const line of lines) {
+    if (state.completed) return buffer;
+    parseStreamPayload(run, state, line);
+    if (state.completed) return buffer;
+  }
+
+  if (flush && buffer.trim()) {
+    parseStreamPayload(run, state, buffer.trim());
+  }
+
+  return flush ? '' : buffer;
+}
+
+async function tryRecoverImage(
+  run: ActiveRun,
+  state: StreamState
+): Promise<boolean> {
+  if (state.completed || !state.promptId || state.jobStartTime === null) {
+    return false;
+  }
+
+  const recovered = await recoverProcessResult(
+    state.promptId,
+    state.jobStartTime,
+    run.abortController.signal
+  );
+
+  if (!recovered) {
+    return false;
+  }
+
+  state.completed = true;
+  finishRun(run, { type: 'image', data: recovered });
+  return true;
 }
 
 async function startRun(
@@ -33,6 +168,12 @@ async function startRun(
   },
   run: ActiveRun
 ) {
+  const state: StreamState = {
+    completed: false,
+    promptId: null,
+    jobStartTime: null,
+  };
+
   try {
     const response = await fetch('/api/comfyui/process', {
       method: 'POST',
@@ -55,39 +196,20 @@ async function startRun(
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        buffer = processStreamLines(run, state, buffer, true);
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      buffer = processStreamLines(run, state, buffer);
+      if (state.completed) return;
+    }
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+    if (state.completed) return;
 
-        try {
-          const data = JSON.parse(line.slice(6));
-
-          if (data.type === 'status' && data.data) {
-            emit(run, { type: 'status', data: String(data.data) });
-          } else if (data.type === 'progress') {
-            emit(run, { type: 'progress', data: data.data });
-          } else if (data.type === 'image' && data.data) {
-            emit(run, { type: 'image', data: data.data });
-            return;
-          } else if (data.type === 'done') {
-            emit(run, { type: 'done' });
-            return;
-          } else if (data.type === 'error') {
-            throw new Error(data.error || 'Unknown error');
-          }
-        } catch (error) {
-          if (error instanceof SyntaxError) {
-            console.warn('[ComfyUIProcessStream] Failed to parse message:', line, error);
-          } else {
-            throw error;
-          }
-        }
-      }
+    if (await tryRecoverImage(run, state)) {
+      return;
     }
 
     throw new Error('Processing ended before an image was returned');
@@ -96,15 +218,21 @@ async function startRun(
       return;
     }
 
-    emit(run, {
+    if (await tryRecoverImage(run, state)) {
+      return;
+    }
+
+    finishRun(run, {
       type: 'error',
       error: error instanceof Error ? error.message : 'Processing failed',
     });
   } finally {
-    const current = activeRuns.get(key);
-    if (current === run) {
-      activeRuns.delete(key);
-    }
+    window.setTimeout(() => {
+      const current = activeRuns.get(key);
+      if (current === run) {
+        activeRuns.delete(key);
+      }
+    }, 60_000);
   }
 }
 
@@ -132,18 +260,12 @@ export function subscribeComfyUIProcess(
 
   run.listeners.add(listener);
 
+  if (run.terminalEvent) {
+    listener(run.terminalEvent);
+  }
+
   return () => {
     run!.listeners.delete(listener);
-
-    if (run!.listeners.size === 0) {
-      window.setTimeout(() => {
-        const current = activeRuns.get(key);
-        if (current === run && current.listeners.size === 0) {
-          current.abortController.abort();
-          activeRuns.delete(key);
-        }
-      }, 250);
-    }
   };
 }
 

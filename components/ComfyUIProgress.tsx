@@ -115,6 +115,8 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
           onProcessingComplete(event.data);
         } else if (event.type === 'done') {
           setIsProcessing(false);
+        } else if (event.type === 'meta') {
+          // Handled by the shared process stream for recovery polling.
         } else if (event.type === 'error') {
           toast.error(event.error);
           setFailed(true);
