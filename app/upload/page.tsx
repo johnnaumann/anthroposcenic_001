@@ -14,12 +14,7 @@ export default function UploadPage() {
 
   return (
     <PageShell>
-      <ImageUploadZone
-        onUploadComplete={handleUploadComplete}
-        onRemove={() => router.push('/upload')}
-        imageId={null}
-        disabled={false}
-      />
+      <ImageUploadZone onUploadComplete={handleUploadComplete} />
     </PageShell>
   );
 }
