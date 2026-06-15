@@ -551,6 +551,138 @@ export async function getAvailableControlNet(kind?: string): Promise<string | nu
   }
 }
 
+/** True if a model name refers to a Flux model (GGUF UNet or a flux*.safetensors). */
+export function isFluxModel(name: string | undefined | null): boolean {
+  if (!name) return false;
+  return /flux/i.test(name) || name.toLowerCase().endsWith('.gguf');
+}
+
+/**
+ * Build a Flux.1 workflow. Flux is a different architecture from SD1.5/SDXL:
+ *  - GGUF UNet (UnetLoaderGGUF), dual text encoder (CLIP-L + T5 via DualCLIPLoader),
+ *    a dedicated VAE, FluxGuidance instead of CFG, and ModelSamplingFlux for shift.
+ *  - It is guidance-distilled, so it runs at cfg=1 (the negative prompt is inert) and
+ *    its T5 encoder thrives on natural-language prose rather than tag soup.
+ * Much simpler than the SD1.5 graph — no FreeU / ControlNet-tile / latent hires.
+ */
+export function buildFluxWorkflow(opts: {
+  fluxUnet: string;
+  imageFilename: string | null;
+  description: string;
+  seed: number;
+  steps: number;
+  denoise: number; // img2img strength (0-1); higher = bolder reinterpretation
+  guidance: number; // FluxGuidance (≈3.5 for [dev])
+  width: number;
+  height: number;
+  useImage: boolean;
+  qualityBoost: boolean;
+}): ComfyUIWorkflow {
+  const FLUX_CLIP_L = process.env.FLUX_CLIP_L || 'clip_l.safetensors';
+  const FLUX_T5 = process.env.FLUX_T5 || 't5xxl_fp8_e4m3fn.safetensors';
+  const FLUX_VAE = process.env.FLUX_VAE || 'ae.safetensors';
+
+  // Flux speaks natural language — feed the rich description directly. A light art
+  // nudge (not photographic "masterpiece" tag soup) when quality boost is on.
+  const cleaned = opts.description.trim().replace(/[\s,]+$/, '');
+  const FLUX_ART_SUFFIX = 'richly detailed, expressive, painterly, fine art, masterful composition';
+  const positive = opts.qualityBoost && cleaned
+    ? `${cleaned}. ${FLUX_ART_SUFFIX}.`
+    : cleaned || 'an abstract artwork';
+
+  // Allow schnell's 4 steps through; cap dev at 30.
+  const steps = Math.min(30, Math.max(4, Math.round(opts.steps)));
+  const workflow: ComfyUIWorkflow = {};
+
+  workflow['unet'] = {
+    class_type: 'UnetLoaderGGUF',
+    inputs: { unet_name: opts.fluxUnet },
+    _meta: { title: 'Load Flux (GGUF)' },
+  };
+  workflow['dualclip'] = {
+    class_type: 'DualCLIPLoader',
+    inputs: { clip_name1: FLUX_CLIP_L, clip_name2: FLUX_T5, type: 'flux' },
+    _meta: { title: 'DualCLIPLoader (Flux)' },
+  };
+  workflow['vae'] = {
+    class_type: 'VAELoader',
+    inputs: { vae_name: FLUX_VAE },
+    _meta: { title: 'Load Flux VAE' },
+  };
+  workflow['model_sampling'] = {
+    class_type: 'ModelSamplingFlux',
+    inputs: { model: ['unet', 0], max_shift: 1.15, base_shift: 0.5, width: opts.width, height: opts.height },
+    _meta: { title: 'ModelSamplingFlux' },
+  };
+  workflow['pos'] = {
+    class_type: 'CLIPTextEncode',
+    inputs: { text: positive, clip: ['dualclip', 0] },
+    _meta: { title: 'Prompt (T5 + CLIP-L)' },
+  };
+  workflow['guidance'] = {
+    class_type: 'FluxGuidance',
+    inputs: { conditioning: ['pos', 0], guidance: opts.guidance },
+    _meta: { title: 'Flux Guidance' },
+  };
+  // Flux runs at cfg=1, so the negative is ignored — but KSampler still needs one.
+  workflow['neg'] = {
+    class_type: 'CLIPTextEncode',
+    inputs: { text: '', clip: ['dualclip', 0] },
+    _meta: { title: 'Negative (inert at cfg 1)' },
+  };
+
+  let latent: [string, number];
+  if (opts.useImage && opts.imageFilename) {
+    workflow['load'] = {
+      class_type: 'LoadImage',
+      inputs: { image: opts.imageFilename },
+      _meta: { title: 'Load Image' },
+    };
+    workflow['enc'] = {
+      class_type: 'VAEEncode',
+      inputs: { pixels: ['load', 0], vae: ['vae', 0] },
+      _meta: { title: 'VAE Encode (img2img)' },
+    };
+    latent = ['enc', 0];
+  } else {
+    workflow['empty'] = {
+      class_type: 'EmptySD3LatentImage',
+      inputs: { width: opts.width, height: opts.height, batch_size: 1 },
+      _meta: { title: 'Empty Latent (Flux)' },
+    };
+    latent = ['empty', 0];
+  }
+
+  workflow['ksampler'] = {
+    class_type: 'KSampler',
+    inputs: {
+      model: ['model_sampling', 0],
+      seed: opts.seed,
+      steps,
+      cfg: 1.0,
+      sampler_name: 'euler',
+      scheduler: 'simple',
+      denoise: opts.useImage ? opts.denoise : 1.0,
+      positive: ['guidance', 0],
+      negative: ['neg', 0],
+      latent_image: latent,
+    },
+    _meta: { title: 'KSampler (Flux)' },
+  };
+  workflow['decode'] = {
+    class_type: 'VAEDecode',
+    inputs: { samples: ['ksampler', 0], vae: ['vae', 0] },
+    _meta: { title: 'VAE Decode' },
+  };
+  workflow['save'] = {
+    class_type: 'SaveImage',
+    inputs: { filename_prefix: 'anthroposcenic', images: ['decode', 0] },
+    _meta: { title: 'Save Image' },
+  };
+
+  return workflow;
+}
+
 /**
  * Create a complete ComfyUI workflow programmatically
  * This builds a workflow that:
@@ -678,6 +810,27 @@ export async function createComfyUIWorkflow(
     negativePrompt = preset.negativePrompt,
   } = options;
 
+  // ── Flux short-circuit ───────────────────────────────────────────────────────
+  // Flux is a different architecture (T5 prose, guidance not CFG, GGUF UNet). When a
+  // Flux model is selected, build its own (simpler) graph and skip the SD1.5 builder.
+  if (isFluxModel(providedCheckpoint)) {
+    return buildFluxWorkflow({
+      fluxUnet: providedCheckpoint,
+      imageFilename,
+      description,
+      seed,
+      // Flux [dev] looks great at ~20 steps; cap it (don't inherit SD1.5's 28) since
+      // each step is ~30s on the M4 — 20 steps ≈ ~10 min, 28 would be ~14 min.
+      steps: Math.min(options.steps ?? 20, 20),
+      denoise: options.denoiseStrength ?? 0.85,
+      guidance: 3.5, // Flux [dev] sweet spot; CFG/sampler/scheduler from the UI don't apply
+      width: options.width ?? maxWidth,
+      height: options.height ?? maxHeight,
+      useImage: options.useImage !== false && imageFilename !== null,
+      qualityBoost: options.qualityBoost !== false,
+    });
+  }
+
   // Get available checkpoints if none provided
   let checkpoint = providedCheckpoint;
   if (!checkpoint) {
@@ -709,7 +862,7 @@ export async function createComfyUIWorkflow(
   // high-resolution, photographic-grade micro-detail while keeping the
   // generative/computer-art character. Style-agnostic (no "photo of ...").
   const qualityBoost = options.qualityBoost !== false;
-  const QUALITY_BOOSTER = 'intricate ultra-fine detail, razor-sharp focus, crisp micro-texture, highly detailed surfaces, tack-sharp, high resolution, photographic clarity, fine grain, high dynamic range, generative digital art, intricate procedural detail, masterpiece, best quality';
+  const QUALITY_BOOSTER = 'highly detailed, intricate, rich texture, expressive brushwork, dramatic lighting, vivid color, dynamic composition, fine art, masterpiece, best quality';
   const ANTI_SOFT_NEGATIVE = 'soft focus, oversmoothed, low detail, plastic texture, motion blur';
   const cleanedDescription = description.trim().replace(/[\s,]+$/, '');
   const positivePrompt = qualityBoost

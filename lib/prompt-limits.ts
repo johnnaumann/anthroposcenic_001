@@ -1,8 +1,10 @@
-/** SD CLIP encoders truncate around 77 tokens; keep headroom for quality tags. */
-export const MAX_SD_PROMPT_WORDS = 75;
+// Flux's T5 encoder handles long natural-language prompts (~256+ tokens), and
+// ComfyUI chunks long prompts for SD CLIP rather than hard-truncating — so we allow
+// rich, nuanced descriptions through and only cap to guard against a runaway model.
+export const MAX_SD_PROMPT_WORDS = 220;
 
-/** Matches the describe instruction ("30–60 descriptive tags"). */
-export const MAX_SD_PROMPT_TAGS = 60;
+/** Generous tag ceiling; rich descriptions are prose, not tag soup. */
+export const MAX_SD_PROMPT_TAGS = 80;
 
 export function countPromptWords(text: string): number {
   const trimmed = text.trim();

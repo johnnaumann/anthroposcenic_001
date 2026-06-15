@@ -140,9 +140,9 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
   const [checkpoint, setCheckpoint] = useState('');
   const [sampler, setSampler] = useState('dpmpp_2m');
   const [scheduler, setScheduler] = useState('karras');
-  const [steps, setSteps] = useState(32);
+  const [steps, setSteps] = useState(28);
   const [cfgScale, setCfgScale] = useState(7);
-  const [denoiseStrength, setDenoiseStrength] = useState(0.6);
+  const [denoiseStrength, setDenoiseStrength] = useState(0.85);
   const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE_PROMPT);
 
   const [hiresFix, setHiresFix] = useState(true);
@@ -164,8 +164,10 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         setConfigOptions(data);
 
         if (data.checkpoints.length > 0) {
-          const dreamshaperIndex = data.checkpoints.findIndex((cp: string) => cp.includes('DreamShaper'));
-          setCheckpoint(dreamshaperIndex >= 0 ? data.checkpoints[dreamshaperIndex] : data.checkpoints[0]);
+          // Prefer Flux (best artistic reinterpretation), then DreamShaper, else first.
+          const flux = data.checkpoints.find((cp: string) => /flux|\.gguf$/i.test(cp));
+          const dream = data.checkpoints.find((cp: string) => cp.includes('DreamShaper'));
+          setCheckpoint(flux || dream || data.checkpoints[0]);
         }
         if (data.samplers.length > 0) {
           const preferredSampler = data.defaults?.sampler || 'dpmpp_2m';
@@ -236,6 +238,8 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
     return null;
   }
 
+  const isFlux = /flux|\.gguf$/i.test(checkpoint);
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -250,6 +254,14 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           placeholder="Select model"
           disabled={disabled}
         />
+        {isFlux && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Flux runs its own engine (guidance 3.5, euler/simple). Sampler, CFG,
+            scheduler and the Detail &amp; refinement options below don&apos;t apply — just
+            tune <span className="text-foreground">Denoise</span> (riff strength) and{' '}
+            <span className="text-foreground">Steps</span>.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

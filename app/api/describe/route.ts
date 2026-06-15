@@ -106,18 +106,18 @@ export async function POST(request: NextRequest) {
       try {
         let tokenCount = 0;
         
-        // Steer the model to emit a Stable Diffusion-style prompt rather than prose.
-        // Diffusion text encoders key on front-loaded, comma-separated visual tokens,
-        // so this produces a far stronger conditioning signal than full sentences.
-        // (When using the custom anthroposcenic-describe model, its modelfile SYSTEM
-        // prompt says the same thing; this keeps the raw-model path aligned too.)
+        // Rich, nuanced read of the artwork. Flux's T5 encoder thrives on natural
+        // language, and a vivid description of style/mood/technique gives the model
+        // far more to "acknowledge and riff on" than a flat list of tags.
         const prompt =
-          'Write a single Stable Diffusion image prompt that recreates and enriches this image. ' +
-          'Output ONLY a comma-separated list of concrete visual tags, most important first: ' +
-          'main subject and key objects, then setting/background, composition and camera angle, ' +
-          'lighting, dominant colors and materials, textures, and overall art style or medium. ' +
-          'Be specific and vivid. No full sentences, no explanations, no quotation marks, no preamble. ' +
-          'Aim for 30-60 descriptive tags.';
+          'You are an art critic and prompt engineer. Study this artwork closely and write a single, ' +
+          'vivid image-generation prompt that captures its essence so an AI can reinterpret and riff on it. ' +
+          'In flowing natural language, describe: the overall style and medium; the mood and atmosphere; ' +
+          'the composition, forms and sense of movement; the colour palette and materials; the texture, ' +
+          'mark-making and technique; and what makes it distinctive. Be specific and evocative — capture ' +
+          'nuance, not just a list of objects. Then finish with a short comma-separated list of key style ' +
+          'descriptors. Write 2-4 sentences followed by the tags. No preamble, no markdown, no headings, ' +
+          'no quotation marks.';
         
         console.log('[Describe] Sending request to Ollama');
         
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
           images: [imageBase64],
           stream: true,
           capPromptLength: true,
+          keepAlive: 0, // unload the vision model right after, freeing memory for Flux
         })) {
           tokenCount++;
           fullResponse += token;
@@ -153,8 +154,9 @@ export async function POST(request: NextRequest) {
           throw new Error('Empty response from Ollama. The model may not be responding correctly. Please ensure the model is created and Ollama is running.');
         }
 
-        // Clean the response - remove any markdown or extra formatting
-        let description = truncatePromptAtLimit(fullResponse.trim());
+        // Clean the response - strip any <think> reasoning block (qwen3-vl), markdown, etc.
+        let raw = fullResponse.trim().replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        let description = truncatePromptAtLimit(raw);
         description = description.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
         description = description.replace(/^#{1,6}\s+/gm, '');
         description = description.trim();

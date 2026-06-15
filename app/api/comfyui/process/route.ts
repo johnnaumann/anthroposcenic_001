@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { readFile, copyFile, mkdir, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability } from '@/lib/comfyui';
+import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability, isFluxModel } from '@/lib/comfyui';
 import { startComfyUI } from '@/lib/comfyui-startup';
 import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
@@ -94,6 +94,17 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      const isFlux = isFluxModel(config.checkpoint);
+
+      // Ensure the model is available. Flux GGUF lives in models/unet and is loaded by
+      // UnetLoaderGGUF, so it skips this checkpoints/ download+validate gate (ComfyUI
+      // validates it at submit time). SD1.5/SDXL checkpoints still go through the gate.
+      if (isFlux) {
+        sendStreamMessage(controller, {
+          type: 'status',
+          data: `Using Flux model: ${config.checkpoint}`,
+        });
+      } else {
       // Ensure checkpoint model is available
       sendStreamMessage(controller, {
         type: 'status',
@@ -185,7 +196,8 @@ export async function POST(request: NextRequest) {
           return;
         }
       }
-      
+      } // end if (!isFlux) — Flux GGUF skips the checkpoints/ gate
+
       console.log(`[ComfyUI Process] ✅ Model ready: ${config.checkpoint}`);
       console.log(`[ComfyUI Process] Mode: ${useImage ? 'img2img' : 'txt2img'}`);
 

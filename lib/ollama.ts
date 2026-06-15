@@ -18,6 +18,8 @@ export interface OllamaStreamOptions {
   stream?: boolean;
   /** Stop streaming once the response reaches SD prompt limits. */
   capPromptLength?: boolean;
+  /** Ollama keep_alive (e.g. 0 to unload the model immediately after this request). */
+  keepAlive?: number | string;
 }
 
 /**
@@ -72,6 +74,9 @@ export async function* streamOllamaResponse(
       prompt: options.prompt || '', // Allow empty prompt but default to empty string
       images: options.images || [],
       stream: true,
+      // keep_alive: 0 unloads the (10GB) vision model right after describe, freeing
+      // unified memory for the Flux generation that follows.
+      ...(options.keepAlive !== undefined ? { keep_alive: options.keepAlive } : {}),
     };
 
     console.log('[Ollama] Request body:', {
