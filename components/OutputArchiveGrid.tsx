@@ -28,18 +28,22 @@ function formatFileSize(bytes: number): string {
 
 interface OutputArchiveGridProps {
   onBack?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
+export function OutputArchiveGrid({ onBack, onLoadingChange }: OutputArchiveGridProps) {
   const router = useRouter();
   const [images, setImages] = useState<OutputImageEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyFilename, setBusyFilename] = useState<string | null>(null);
 
-  const loadImages = useCallback(async () => {
-    setLoading(true);
+  const loadImages = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+      onLoadingChange?.(true);
+    }
     try {
-      const response = await fetch('/api/outputs');
+      const response = await fetch('/api/outputs', { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Failed to load archive');
       }
@@ -48,12 +52,31 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load archive');
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+        onLoadingChange?.(false);
+      }
     }
-  }, []);
+  }, [onLoadingChange]);
 
   useEffect(() => {
     loadImages();
+  }, [loadImages]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        void loadImages({ silent: true });
+      }
+    };
+
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [loadImages]);
 
   const handleUse = async (image: OutputImageEntry) => {
@@ -110,7 +133,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading archive…
       </div>
@@ -142,7 +165,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="columns-2 gap-3 sm:columns-3">
           {images.map((image) => {
             const isBusy = busyFilename === image.filename;
 
@@ -150,18 +173,20 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
               <article
                 key={image.filename}
                 className={cn(
-                  'group overflow-hidden rounded-xl border border-border bg-card transition-colors',
+                  'mb-3 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card transition-colors',
                   isBusy && 'opacity-60'
                 )}
               >
-                <div className="relative aspect-square overflow-hidden bg-muted/30">
+                <div className="bg-muted/30">
                   <Image
+                    key={image.imageUrl}
                     src={image.imageUrl}
                     alt={image.filename}
-                    fill
+                    width={1024}
+                    height={1024}
                     unoptimized
                     sizes="(max-width: 640px) 50vw, 33vw"
-                    className="object-cover"
+                    className="h-auto w-full"
                   />
                 </div>
 

@@ -6,7 +6,14 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const images = await listOutputImages();
-    return NextResponse.json({ images });
+    return NextResponse.json(
+      { images },
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to list output images:', error);
     return NextResponse.json(

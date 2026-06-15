@@ -19,6 +19,7 @@ export function RouteFallback() {
 interface PageShellProps {
   error?: string;
   wide?: boolean;
+  card?: boolean;
   children: React.ReactNode;
 }
 
@@ -26,7 +27,7 @@ interface PageShellProps {
  * Shared chrome: a theme toggle and the step's content in an off-black card
  * centered on the near-black page.
  */
-export function PageShell({ error, wide, children }: PageShellProps) {
+export function PageShell({ error, wide, card = true, children }: PageShellProps) {
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -39,9 +40,19 @@ export function PageShell({ error, wide, children }: PageShellProps) {
         <ThemeToggle />
       </div>
 
-      <main className="flex flex-1 px-5 py-10">
-        <div className={cn('m-auto w-full', wide ? 'max-w-5xl' : 'max-w-xl')}>
-          <Card className="p-6 shadow-2xl shadow-black/40">{children}</Card>
+      <main className="flex flex-1 flex-col px-5 py-10">
+        <div
+          className={cn(
+            'm-auto w-full',
+            wide ? 'max-w-5xl' : 'max-w-xl',
+            !card && 'flex flex-1 flex-col items-center justify-center'
+          )}
+        >
+          {card ? (
+            <Card className="p-6 shadow-2xl shadow-black/40">{children}</Card>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>

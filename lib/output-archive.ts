@@ -24,9 +24,14 @@ export function isArchiveFilename(filename: string): boolean {
   );
 }
 
-export function getOutputImageUrl(filename: string): string {
-  return `/api/comfyui/output?filename=${encodeURIComponent(filename)}`;
+export function getOutputImageUrl(filename: string, version?: number): string {
+  const base = `/api/outputs/image/${encodeURIComponent(filename)}`;
+  return version != null ? `${base}?v=${version}` : base;
 }
+
+/** Skip outputs that are still being written or are clearly incomplete. */
+const MIN_ARCHIVE_BYTES = 10 * 1024;
+const MIN_AGE_MS = 2_000;
 
 export async function listOutputImages(): Promise<OutputImageEntry[]> {
   if (!existsSync(OUTPUT_DIR)) {
@@ -35,6 +40,7 @@ export async function listOutputImages(): Promise<OutputImageEntry[]> {
 
   const files = await readdir(OUTPUT_DIR);
   const entries: OutputImageEntry[] = [];
+  const now = Date.now();
 
   for (const filename of files) {
     if (!isArchiveFilename(filename)) continue;
@@ -42,10 +48,12 @@ export async function listOutputImages(): Promise<OutputImageEntry[]> {
     const filePath = join(OUTPUT_DIR, filename);
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) continue;
+    if (fileStat.size < MIN_ARCHIVE_BYTES) continue;
+    if (now - fileStat.mtimeMs < MIN_AGE_MS) continue;
 
     entries.push({
       filename,
-      imageUrl: getOutputImageUrl(filename),
+      imageUrl: getOutputImageUrl(filename, fileStat.mtimeMs),
       createdAt: fileStat.mtime.toISOString(),
       size: fileStat.size,
     });

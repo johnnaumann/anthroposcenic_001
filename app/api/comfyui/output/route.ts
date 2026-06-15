@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { OUTPUT_DIR } from '@/lib/output-archive';
+import { isSafeOutputFilename, serveOutputImageFile } from '@/lib/serve-output-image';
+
+export const dynamic = 'force-dynamic';
 
 const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
 
@@ -24,49 +23,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to read from filesystem first (most reliable)
-    const filePath = join(OUTPUT_DIR, filename);
-    
-    if (existsSync(filePath)) {
-      try {
-        const fileBuffer = await readFile(filePath);
-        const extension = filename.split('.').pop()?.toLowerCase() || 'png';
-        const mimeTypes: Record<string, string> = {
-          png: 'image/png',
-          jpg: 'image/jpeg',
-          jpeg: 'image/jpeg',
-          gif: 'image/gif',
-          webp: 'image/webp',
-        };
-        const mimeType = mimeTypes[extension] || 'image/png';
-
-        return new NextResponse(fileBuffer, {
-          headers: {
-            'Content-Type': mimeType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-            ...(download
-              ? { 'Content-Disposition': `attachment; filename="${filename}"` }
-              : {}),
-          },
-        });
-      } catch (error) {
-        console.error(`Error reading file ${filePath}:`, error);
-      }
+    if (!isSafeOutputFilename(filename)) {
+      return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
     }
 
-    // Fallback: Proxy from ComfyUI
+    const localResponse = await serveOutputImageFile(filename, { request, download });
+    if (localResponse.status !== 404) {
+      return localResponse;
+    }
+
+    // Fallback: proxy from ComfyUI when the file is not on disk yet
     try {
       const comfyUrl = `${COMFYUI_HOST}/view?filename=${encodeURIComponent(filename)}&type=output`;
-      const response = await fetch(comfyUrl);
-      
+      const response = await fetch(comfyUrl, { cache: 'no-store' });
+
       if (response.ok) {
         const imageBuffer = await response.arrayBuffer();
         const contentType = response.headers.get('content-type') || 'image/png';
-        
+
         return new NextResponse(imageBuffer, {
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
+            'Cache-Control': 'private, no-cache, must-revalidate',
             ...(download
               ? { 'Content-Disposition': `attachment; filename="${filename}"` }
               : {}),
@@ -74,13 +52,10 @@ export async function GET(request: NextRequest) {
         });
       }
     } catch (error) {
-      console.error(`Error proxying from ComfyUI:`, error);
+      console.error('Error proxying from ComfyUI:', error);
     }
 
-    return NextResponse.json(
-      { error: 'Image not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: 'Image not found' }, { status: 404 });
   } catch (error) {
     console.error('ComfyUI output image error:', error);
     return NextResponse.json(

@@ -294,7 +294,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
 
   const isFlux = /flux|\.gguf$/i.test(checkpoint);
   const summary = isFlux
-    ? `Flux · ${fluxQuality === 'fast' ? 'schnell · ~2 min' : 'dev · ~13 min'} · denoise ${denoiseStrength}`
+    ? `Flux · ${fluxQuality === 'fast' ? 'fast · ~2 min' : 'slow · ~13 min'} · denoise ${denoiseStrength}`
     : `${checkpoint} · ${steps} steps · denoise ${denoiseStrength}${hiresFix ? ' · hi-res' : ''}`;
 
   return (
@@ -318,7 +318,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           <div className="space-y-1.5">
             <FieldLabel
               label="Speed"
-              tip="schnell ≈ 2 min — great for exploring. dev ≈ 13 min — for final pieces. Flux uses its own engine, so the SD knobs (sampler, CFG, scheduler, hi-res, negative prompt) don't apply."
+              tip="Fast ≈ 2 min — great for exploring. Slow ≈ 13 min — for final pieces. Flux uses its own engine, so the SD knobs (sampler, CFG, scheduler, hi-res, negative prompt) don't apply."
             />
             <div className="flex gap-1 rounded-lg border border-border p-1">
               <button
@@ -330,7 +330,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
                   fluxQuality === 'fast' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                Fast · schnell
+                Fast
               </button>
               <button
                 type="button"
@@ -341,7 +341,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
                   fluxQuality === 'quality' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                Quality · dev
+                Slow
               </button>
             </div>
           </div>
@@ -402,7 +402,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
                     value={negativePrompt}
                     onChange={(e) => setNegativePrompt(e.target.value)}
                     disabled={disabled}
-                    className="min-h-[64px] resize-none font-mono !text-[12px] leading-relaxed"
+                    className="min-h-[64px] resize-none text-sm leading-relaxed"
                     placeholder="blurry, low quality…"
                   />
                 </div>
