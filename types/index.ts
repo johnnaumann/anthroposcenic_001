@@ -22,6 +22,14 @@ export interface ComfyUIConfig {
   cfgScale: number;
   denoiseStrength: number;
   negativePrompt: string;
+  // Detail & refinement (optional; the workflow falls back to sensible defaults)
+  hiresFix?: boolean; // run the upscale + refine pass
+  hiresFactor?: number; // final upscale multiplier vs the base image
+  hiresDenoise?: number; // refine-pass denoise (higher = more redrawn texture)
+  controlNet?: boolean; // ControlNet Tile guidance on the refine pass
+  controlNetStrength?: number; // how strongly the tile control holds structure
+  freeU?: boolean; // FreeU detail/contrast boost
+  qualityBoost?: boolean; // append photographic-detail prompt tags
 }
 
 export interface DescribeStreamChunk {

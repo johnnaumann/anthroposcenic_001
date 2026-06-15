@@ -77,6 +77,17 @@ export async function GET() {
         // keeping the original composition; the hires-fix pass restores fine detail.
         denoiseStrength: 0.6,
         negativePrompt: 'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate',
+        // Detail & refinement. Tuned for Apple-Silicon MPS: the ESRGAN + refine
+        // pass adds the crisp texture; ControlNet Tile is OFF by default because
+        // it's very slow on MPS at hi-res (opt-in when you can wait). Push the
+        // Upscale × higher for more final resolution at the cost of time.
+        hiresFix: true,
+        hiresFactor: 1.5,
+        hiresDenoise: 0.45,
+        controlNet: false,
+        controlNetStrength: 0.65,
+        freeU: true,
+        qualityBoost: true,
       },
     });
   } catch (error) {

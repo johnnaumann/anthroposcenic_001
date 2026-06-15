@@ -294,6 +294,14 @@ export async function POST(request: NextRequest) {
             useImage: useImage, // Whether to use img2img or txt2img
             width: width,
             height: height,
+            // Detail & refinement (undefined → workflow uses its own defaults)
+            hiresFix: config.hiresFix,
+            hiresFactor: config.hiresFactor,
+            hiresDenoise: config.hiresDenoise,
+            controlNet: config.controlNet,
+            controlNetStrength: config.controlNetStrength,
+            freeU: config.freeU,
+            qualityBoost: config.qualityBoost,
           });
 
       // Send initial status

@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
+import { cn } from '@/lib/utils';
 
 interface ConfigSelectorProps {
   description: string;
@@ -24,6 +25,13 @@ interface ComfyUIConfigOptions {
     cfgScale: number;
     denoiseStrength: number;
     negativePrompt: string;
+    hiresFix?: boolean;
+    hiresFactor?: number;
+    hiresDenoise?: number;
+    controlNet?: boolean;
+    controlNetStrength?: number;
+    freeU?: boolean;
+    qualityBoost?: boolean;
   };
 }
 
@@ -41,6 +49,37 @@ function FieldLabel({ label, tip }: { label: string; tip: string }) {
   );
 }
 
+function Toggle({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        'flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-sm transition-colors',
+        checked ? 'bg-accent/40' : 'hover:bg-accent/20',
+        disabled && 'cursor-not-allowed opacity-50'
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+        className="h-4 w-4 accent-[hsl(var(--foreground))]"
+      />
+      {label}
+    </label>
+  );
+}
+
 export function ConfigSelector({ description, onConfigSelected, disabled }: ConfigSelectorProps) {
   const [configOptions, setConfigOptions] = useState<ComfyUIConfigOptions | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +94,15 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
   const [negativePrompt, setNegativePrompt] = useState(
     'blurry, lowres, low quality, worst quality, jpeg artifacts, compression artifacts, oversaturated, washed out, flat lighting, deformed, disfigured, mutated, extra limbs, bad anatomy, watermark, signature, text, cropped, out of frame, duplicate'
   );
+
+  // Detail & refinement
+  const [hiresFix, setHiresFix] = useState(true);
+  const [hiresFactor, setHiresFactor] = useState(1.5);
+  const [hiresDenoise, setHiresDenoise] = useState(0.45);
+  const [controlNet, setControlNet] = useState(false);
+  const [controlNetStrength, setControlNetStrength] = useState(0.65);
+  const [freeU, setFreeU] = useState(true);
+  const [qualityBoost, setQualityBoost] = useState(true);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -85,6 +133,16 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         setCfgScale(data.defaults.cfgScale);
         setDenoiseStrength(data.defaults.denoiseStrength);
         setNegativePrompt(data.defaults.negativePrompt);
+
+        // Detail & refinement defaults (tolerate an older server without them)
+        const d = data.defaults || {};
+        if (typeof d.hiresFix === 'boolean') setHiresFix(d.hiresFix);
+        if (typeof d.hiresFactor === 'number') setHiresFactor(d.hiresFactor);
+        if (typeof d.hiresDenoise === 'number') setHiresDenoise(d.hiresDenoise);
+        if (typeof d.controlNet === 'boolean') setControlNet(d.controlNet);
+        if (typeof d.controlNetStrength === 'number') setControlNetStrength(d.controlNetStrength);
+        if (typeof d.freeU === 'boolean') setFreeU(d.freeU);
+        if (typeof d.qualityBoost === 'boolean') setQualityBoost(d.qualityBoost);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load configuration');
       } finally {
@@ -108,6 +166,13 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
       cfgScale,
       denoiseStrength,
       negativePrompt,
+      hiresFix,
+      hiresFactor,
+      hiresDenoise,
+      controlNet,
+      controlNetStrength,
+      freeU,
+      qualityBoost,
     });
   };
 
@@ -234,10 +299,66 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         />
       </div>
 
+      {/* Detail & refinement */}
+      <div className="space-y-3 border-t border-border pt-5">
+        <FieldLabel
+          label="Detail & refinement"
+          tip="Post-processing that sharpens texture and adds fine detail. Tuned for your GPU — switch off for faster, lighter runs."
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Toggle label="Hi-res detail pass" checked={hiresFix} onChange={setHiresFix} disabled={disabled} />
+          <Toggle label="ControlNet Tile" checked={controlNet} onChange={setControlNet} disabled={disabled || !hiresFix} />
+          <Toggle label="FreeU boost" checked={freeU} onChange={setFreeU} disabled={disabled} />
+          <Toggle label="Quality tags" checked={qualityBoost} onChange={setQualityBoost} disabled={disabled} />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <FieldLabel label="Upscale ×" tip="Final size vs the base image. 2.0 ≈ 2560px from a 1280px base. Higher = sharper and slower." />
+            <input
+              type="number"
+              value={hiresFactor}
+              onChange={(e) => setHiresFactor(parseFloat(e.target.value) || 1.5)}
+              min="1"
+              max="4"
+              step="0.25"
+              disabled={disabled || !hiresFix}
+              className={fieldClass}
+            />
+          </div>
+          <div className="space-y-2">
+            <FieldLabel label="Refine denoise" tip="How much texture the refine pass redraws. Higher = more detail/change; lower = more faithful. 0.5–0.6 is a good range." />
+            <input
+              type="number"
+              value={hiresDenoise}
+              onChange={(e) => setHiresDenoise(parseFloat(e.target.value) || 0.45)}
+              min="0"
+              max="1"
+              step="0.05"
+              disabled={disabled || !hiresFix}
+              className={fieldClass}
+            />
+          </div>
+          <div className="space-y-2">
+            <FieldLabel label="Tile strength" tip="How strongly ControlNet Tile holds the original structure during refine. Higher = more faithful." />
+            <input
+              type="number"
+              value={controlNetStrength}
+              onChange={(e) => setControlNetStrength(parseFloat(e.target.value) || 0.65)}
+              min="0"
+              max="2"
+              step="0.05"
+              disabled={disabled || !hiresFix || !controlNet}
+              className={fieldClass}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Action */}
-      <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+      <div className="flex items-center justify-between gap-4">
         <p className="truncate text-xs text-muted-foreground">
-          {checkpoint} · {steps} steps · denoise {denoiseStrength} · hi-res pass on
+          {checkpoint} · {steps} steps · denoise {denoiseStrength}
+          {hiresFix ? ` · hi-res ×${hiresFactor}${controlNet ? ' + tile' : ''}` : ' · no hi-res'}
         </p>
         <Button
           size="lg"
