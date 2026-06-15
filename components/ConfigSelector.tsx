@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
 import { cn } from '@/lib/utils';
@@ -42,8 +42,17 @@ function FieldLabel({ label, tip }: { label: string; tip: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
-      <Tooltip content={tip}>
-        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/60" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            aria-label={`About ${label}`}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{tip}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -73,7 +82,7 @@ function Toggle({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
-        className="h-4 w-4 accent-[hsl(var(--foreground))]"
+        className="h-4 w-4 accent-foreground"
       />
       {label}
     </label>
