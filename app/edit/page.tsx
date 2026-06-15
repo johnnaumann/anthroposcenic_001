@@ -37,7 +37,7 @@ function EditContent() {
   }
 
   return (
-    <PageShell step="edit" subtitle="Refine the prompt before generating — this is what the model will follow.">
+    <PageShell step="edit">
       <DescriptionEditor
         description={description}
         onDescriptionChange={setDescription}

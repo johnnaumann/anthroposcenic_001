@@ -71,6 +71,21 @@ export async function POST(request: NextRequest) {
       const imageBuffer = await readFile(imageFile.path);
       const imageBase64 = imageToBase64(imageBuffer, imageFile.mimeType);
 
+      // Free ComfyUI's GPU/unified memory before loading the vision model. On Apple
+      // Silicon (MPS) ComfyUI keeps its models resident after a generation, which can
+      // starve Ollama and wedge this step. Best-effort — ComfyUI may not be running.
+      try {
+        const comfyHost = process.env.COMFYUI_HOST || 'http://localhost:8188';
+        await fetch(`${comfyHost}/free`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ unload_models: true, free_memory: true }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch {
+        /* ComfyUI not running or unreachable — nothing to free */
+      }
+
       // System prompt is in the modelfile - use minimal trigger (not an instruction)
       // The modelfile system prompt contains all instructions for JSON generation
       // Use the custom model if no model specified, fallback to default from config

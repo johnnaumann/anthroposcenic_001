@@ -27,7 +27,7 @@ function DescribeContent() {
   }
 
   return (
-    <PageShell step="describe" subtitle="A vision model reads the image and writes a prompt.">
+    <PageShell step="describe">
       <DescriptionStream
         imageId={imageId}
         onDescriptionComplete={handleDescriptionComplete}

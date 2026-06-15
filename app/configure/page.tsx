@@ -36,7 +36,7 @@ function ConfigureContent() {
   }
 
   return (
-    <PageShell step="configure" subtitle="Tuned for detail by default — adjust only if you want to.">
+    <PageShell step="configure">
       <ConfigSelector
         description={description}
         onConfigSelected={handleConfigSelected}

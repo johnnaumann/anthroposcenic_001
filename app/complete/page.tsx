@@ -22,9 +22,9 @@ function CompleteContent() {
   }
 
   return (
-    <PageShell step="complete" subtitle="Your reinterpreted image is ready.">
+    <PageShell step="complete">
       <div className="space-y-5">
-        <div className="overflow-hidden rounded-xl border border-border bg-muted/30">
+        <div className="overflow-hidden rounded-lg">
           <img
             src={imageUrl}
             alt="Reinterpreted result"

@@ -440,12 +440,12 @@ export async function findLatestOutputImage(
       console.log(`[FileSystem] Files after adjusted start time: ${candidateFiles.length}`);
       
       if (candidateFiles.length === 0) {
-        // If no files created after job start, use the most recent file anyway
-        console.log(`[FileSystem] ⚠️ No files created after job start, using most recent file anyway`);
-        if (filesWithStats.length > 0) {
-          candidateFiles = [filesWithStats[0]];
-          console.log(`[FileSystem]   Selected: ${candidateFiles[0].filename} (${new Date(candidateFiles[0].time).toISOString()})`);
-        }
+        // No file was created at/after this job started. Do NOT fall back to an older
+        // pre-existing image — that returns a STALE result and makes the poller report
+        // completion before this job's SaveImage runs (e.g. when an early sampler hits
+        // 100% in a multi-pass workflow). Signal "not ready yet" and keep polling.
+        console.log(`[FileSystem] No output created after job start yet; not using a stale file`);
+        return null;
       } else {
         console.log(`[FileSystem] Found ${candidateFiles.length} file(s) created after job start:`);
         candidateFiles.slice(0, 3).forEach((f, i) => {

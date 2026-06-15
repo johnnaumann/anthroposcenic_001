@@ -42,11 +42,7 @@ function ProcessContent() {
   }
 
   return (
-    <PageShell
-      step="process"
-      subtitle="Reinterpreting your image with ComfyUI. This can take a few minutes on CPU."
-      error={error || undefined}
-    >
+    <PageShell step="process" error={error || undefined}>
       {config && (
         <ComfyUIProgress
           imageId={imageId}
