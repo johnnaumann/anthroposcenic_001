@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CreativeTransformProps {
   imageId: string | null;
@@ -21,7 +22,6 @@ export function CreativeTransform({
 }: CreativeTransformProps) {
   const [transformedDescription, setTransformedDescription] = useState('');
   const [isTransforming, setIsTransforming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -31,7 +31,6 @@ export function CreativeTransform({
       if (!originalDescription) console.log('[CreativeTransform] Waiting for originalDescription, current config description:', originalDescription);
       if (disabled) console.log('[CreativeTransform] Component is disabled');
       setTransformedDescription('');
-      setError(null);
       return;
     }
 
@@ -51,7 +50,6 @@ export function CreativeTransform({
     if (!imageId || !originalDescription) return;
 
     setIsTransforming(true);
-    setError(null);
     setTransformedDescription('');
 
     abortControllerRef.current = new AbortController();
@@ -114,9 +112,9 @@ export function CreativeTransform({
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
-          setError('Transformation was cancelled or timed out');
+          toast.error('Transformation was cancelled or timed out');
         } else {
-          setError(err.message);
+          toast.error(err.message);
         }
         setIsTransforming(false);
       }
@@ -179,11 +177,6 @@ export function CreativeTransform({
             )}
           </div>
         </div>
-        {error && (
-          <div className="p-3 bg-muted text-foreground/80 border border-foreground/20 text-sm rounded-md">
-            {error}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

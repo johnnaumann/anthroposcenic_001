@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
 import { countPromptTags, countPromptWords } from '@/lib/prompt-limits';
+import { toast } from 'sonner';
 
 interface DescriptionStreamProps {
   imageId: string | null;
@@ -15,7 +16,6 @@ interface DescriptionStreamProps {
 export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: DescriptionStreamProps) {
   const [description, setDescription] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -23,7 +23,6 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       startDescription();
     } else {
       setDescription('');
-      setError(null);
     }
 
     return () => {
@@ -38,7 +37,6 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
     if (!imageId) return;
 
     setIsStreaming(true);
-    setError(null);
     setDescription('');
 
     abortControllerRef.current = new AbortController();
@@ -111,13 +109,13 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
         if (description && description.length > 0) {
           setIsStreaming(false);
         } else {
-          setError('Stream ended without a response. The model may not be responding — ensure it exists: ollama list');
+          toast.error('Stream ended without a response. The model may not be responding — ensure it exists: ollama list');
           setIsStreaming(false);
         }
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err.message);
+        toast.error(err.message);
         setIsStreaming(false);
       } else if (err instanceof Error && err.name === 'AbortError') {
         setIsStreaming(false);
@@ -169,8 +167,6 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           </div>
         )}
       </div>
-
-      {error && <p className="text-sm text-muted-foreground">{error}</p>}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { ComfyUIConfig } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -133,7 +134,7 @@ function ConfigToggle({
 export function ConfigSelector({ description, onConfigSelected, disabled }: ConfigSelectorProps) {
   const [configOptions, setConfigOptions] = useState<ComfyUIConfigOptions | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [checkpoint, setCheckpoint] = useState('');
   const [sampler, setSampler] = useState('dpmpp_2m');
@@ -189,7 +190,9 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
         if (typeof d.freeU === 'boolean') setFreeU(d.freeU);
         if (typeof d.qualityBoost === 'boolean') setQualityBoost(d.qualityBoost);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load configuration');
+        const message = err instanceof Error ? err.message : 'Failed to load configuration';
+        toast.error(message);
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -230,8 +233,8 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
     );
   }
 
-  if (error || !configOptions) {
-    return <p className="py-8 text-sm text-muted-foreground">{error || 'No configuration available.'}</p>;
+  if (loadFailed || !configOptions) {
+    return null;
   }
 
   return (

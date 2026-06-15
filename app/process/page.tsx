@@ -6,6 +6,7 @@ import { ComfyUIProgress } from '@/components/ComfyUIProgress';
 import { PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
 import { ComfyUIConfig } from '@/types';
+import { toast } from 'sonner';
 
 function ProcessContent() {
   const router = useRouter();
@@ -13,16 +14,18 @@ function ProcessContent() {
   const imageId = searchParams.get('imageId');
   const configParam = searchParams.get('config');
   const [config, setConfig] = useState<ComfyUIConfig | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
     if (configParam) {
       try {
         const decodedConfig = JSON.parse(decodeURIComponent(configParam)) as ComfyUIConfig;
         setConfig(decodedConfig);
+        setConfigError(false);
       } catch (e) {
         console.error('Failed to parse config:', e);
-        setError('Failed to read the configuration. Please go back and reconfigure.');
+        toast.error('Failed to read the configuration. Please go back and reconfigure.');
+        setConfigError(true);
       }
     }
   }, [configParam]);
@@ -31,7 +34,7 @@ function ProcessContent() {
     router.push(`/complete?imageUrl=${encodeURIComponent(imageUrl)}`);
   };
 
-  if (!imageId || (!config && !error)) {
+  if (!imageId || (!config && !configError)) {
     return (
       <PageShell error="Missing image or configuration. Please go back and configure settings.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
@@ -41,16 +44,24 @@ function ProcessContent() {
     );
   }
 
+  if (configError || !config) {
+    return (
+      <PageShell>
+        <Button variant="outline" onClick={() => router.push('/configure')}>
+          Go to configure
+        </Button>
+      </PageShell>
+    );
+  }
+
   return (
-    <PageShell error={error || undefined}>
-      {config && (
-        <ComfyUIProgress
-          imageId={imageId}
-          config={config}
-          onProcessingComplete={handleProcessingComplete}
-          disabled={false}
-        />
-      )}
+    <PageShell>
+      <ComfyUIProgress
+        imageId={imageId}
+        config={config}
+        onProcessingComplete={handleProcessingComplete}
+        disabled={false}
+      />
     </PageShell>
   );
 }

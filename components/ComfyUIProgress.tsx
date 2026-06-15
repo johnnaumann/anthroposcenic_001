@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { ComfyUIConfig } from '@/types';
 
 interface ComfyUIProgressProps {
@@ -21,7 +21,6 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
   const [progress, setProgress] = useState(0);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [useImage, setUseImage] = useState<boolean>(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -43,12 +42,11 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
     if (!config) return;
 
     if (useImage && !imageId) {
-      setError('Image is required for image-to-image mode');
+      toast.error('Image is required for image-to-image mode');
       return;
     }
 
     setIsProcessing(true);
-    setError(null);
     setProgress(0);
     setStatus(useImage ? 'Initializing ComfyUI with image…' : 'Initializing ComfyUI for text-to-image…');
 
@@ -125,7 +123,7 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err.message);
+        toast.error(err.message);
         setIsProcessing(false);
       }
     }
@@ -167,7 +165,7 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
         </div>
       )}
 
-      {!isProcessing && !resultImage && !error && (
+      {!isProcessing && !resultImage && (
         <div className="space-y-5">
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-muted-foreground">
@@ -204,12 +202,6 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
             {useImage ? 'Process image' : 'Generate from prompt'}
           </Button>
         </div>
-      )}
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
       )}
     </div>
   );

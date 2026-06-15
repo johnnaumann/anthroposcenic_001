@@ -5,6 +5,7 @@ import { UploadResponse } from '@/types';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ImageUploadZoneProps {
   onUploadComplete: (response: UploadResponse) => void;
@@ -17,7 +18,6 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [currentImageId, setCurrentImageId] = useState<string | null>(imageId || null);
 
@@ -34,12 +34,11 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file');
+      toast.error('Please upload an image file');
       return;
     }
 
     setIsUploading(true);
-    setError(null);
 
     try {
       const formData = new FormData();
@@ -58,10 +57,9 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
       const data: UploadResponse = await response.json();
       setPreview(data.imageUrl);
       setCurrentImageId(data.imageId);
-      setError(null);
       onUploadComplete(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsUploading(false);
     }
@@ -105,7 +103,6 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
     if (!currentImageId) return;
 
     setIsRemoving(true);
-    setError(null);
 
     try {
       const response = await fetch(`/api/images/${currentImageId}`, {
@@ -119,13 +116,12 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
 
       setPreview(null);
       setCurrentImageId(null);
-      setError(null);
 
       if (onRemove) {
         onRemove();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove image');
+      toast.error(err instanceof Error ? err.message : 'Failed to remove image');
     } finally {
       setIsRemoving(false);
     }
@@ -207,8 +203,6 @@ export function ImageUploadZone({ onUploadComplete, onRemove, imageId, disabled 
           </label>
         )}
       </div>
-
-      {error && <p className="text-sm text-muted-foreground">{error}</p>}
     </div>
   );
 }
