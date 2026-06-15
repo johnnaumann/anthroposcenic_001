@@ -57,7 +57,10 @@ export function createProgressAggregator(phases: ProcessingPhase[]) {
     const phaseFraction = (clampedStep / 100) * currentPhase.weight;
     const overall = Math.min(
       99,
-      Math.round((completedWeight + phaseFraction) * 100)
+      Math.max(
+        clampedStep > 0 ? 1 : 0,
+        Math.round((completedWeight + phaseFraction) * 100)
+      )
     );
 
     return {

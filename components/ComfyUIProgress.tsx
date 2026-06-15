@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ComfyUIConfig, ProcessingProgressData } from '@/types';
+import {
+  abortComfyUIProcess,
+  subscribeComfyUIProcess,
+} from '@/lib/comfyui-process-stream';
 
 interface ComfyUIProgressProps {
   imageId: string | null;
@@ -45,24 +49,37 @@ function formatProgressDetail(progress: ProcessingProgressData | null): string {
   return parts.join(' · ');
 }
 
+function parseStatusProgress(statusText: string): number | null {
+  const downloadMatch = statusText.match(/Downloading model: (\d+)%/);
+  if (downloadMatch) {
+    return parseInt(downloadMatch[1], 10);
+  }
+  return null;
+}
+
 export function ComfyUIProgress({ imageId, config, onProcessingComplete, disabled }: ComfyUIProgressProps) {
   const [status, setStatus] = useState('Starting…');
   const [progressDetail, setProgressDetail] = useState('');
   const [progress, setProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(true);
   const [failed, setFailed] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const hasStartedRef = useRef(false);
+  const [retryKey, setRetryKey] = useState(0);
 
-  const startProcessing = useCallback(async () => {
-    if (!config) return;
+  const processKey = useMemo(
+    () => (imageId ? `${imageId}:${retryKey}` : null),
+    [imageId, retryKey]
+  );
 
-    if (!imageId) {
-      toast.error('Image is required for processing');
-      setFailed(true);
-      setIsProcessing(false);
-      return;
+  const retry = useCallback(() => {
+    if (processKey) {
+      abortComfyUIProcess(processKey);
     }
+    setFailed(false);
+    setRetryKey((key) => key + 1);
+  }, [processKey]);
+
+  useEffect(() => {
+    if (!config || disabled || !imageId || !processKey) return;
 
     setFailed(false);
     setIsProcessing(true);
@@ -70,102 +87,50 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
     setProgressDetail('');
     setStatus('Initializing ComfyUI…');
 
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await fetch('/api/comfyui/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageId,
-          config,
-          useImage: true,
-          width: 1024,
-          height: 1024,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to start ComfyUI processing');
-      }
-
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-
-          try {
-            const data = JSON.parse(line.slice(6));
-
-            if (data.type === 'status' && data.data) {
-              setStatus(String(data.data));
-            } else if (data.type === 'progress') {
-              if (isProgressData(data.data)) {
-                setProgress(data.data.overall);
-                setProgressDetail(formatProgressDetail(data.data));
-              } else if (typeof data.data === 'number') {
-                setProgress(data.data);
-              }
-            } else if (data.type === 'image' && data.data) {
-              onProcessingComplete(data.data);
-              return;
-            } else if (data.type === 'done') {
-              return;
-            } else if (data.type === 'error') {
-              throw new Error(data.error || 'Unknown error');
-            }
-          } catch (e) {
-            if (e instanceof SyntaxError) {
-              console.warn('[ComfyUIProgress] Failed to parse message:', line, e);
-            } else {
-              throw e;
-            }
+    const unsubscribe = subscribeComfyUIProcess(
+      processKey,
+      {
+        imageId,
+        config,
+        useImage: true,
+        width: 1024,
+        height: 1024,
+      },
+      (event) => {
+        if (event.type === 'status') {
+          setStatus(event.data);
+          const statusProgress = parseStatusProgress(event.data);
+          if (statusProgress !== null) {
+            setProgress(statusProgress);
           }
+        } else if (event.type === 'progress') {
+          if (isProgressData(event.data)) {
+            setProgress(event.data.overall);
+            setProgressDetail(formatProgressDetail(event.data));
+          } else if (typeof event.data === 'number') {
+            setProgress(event.data);
+          }
+        } else if (event.type === 'image') {
+          setIsProcessing(false);
+          onProcessingComplete(event.data);
+        } else if (event.type === 'done') {
+          setIsProcessing(false);
+        } else if (event.type === 'error') {
+          toast.error(event.error);
+          setFailed(true);
+          setIsProcessing(false);
         }
       }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        toast.error(err.message);
-        setFailed(true);
-        setIsProcessing(false);
-      }
-    }
-  }, [config, imageId, onProcessingComplete]);
+    );
 
-  useEffect(() => {
-    if (!config || disabled || hasStartedRef.current) return;
-    hasStartedRef.current = true;
-    startProcessing();
-  }, [config, disabled, startProcessing]);
-
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
+    return unsubscribe;
+  }, [config, disabled, imageId, onProcessingComplete, processKey]);
 
   if (failed) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <p className="text-sm text-muted-foreground">Processing did not complete.</p>
-        <Button onClick={() => startProcessing()} disabled={disabled}>
+        <Button onClick={retry} disabled={disabled}>
           Try again
         </Button>
       </div>

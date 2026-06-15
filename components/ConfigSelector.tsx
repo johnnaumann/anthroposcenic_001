@@ -322,7 +322,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           value={negativePrompt}
           onChange={(e) => setNegativePrompt(e.target.value)}
           disabled={disabled}
-          className="min-h-[88px] text-[13px] leading-relaxed"
+          className="min-h-[88px] resize-none font-mono !text-[12px] leading-relaxed"
           placeholder="blurry, low quality, artifacts…"
         />
       </div>

@@ -50,7 +50,20 @@ export async function POST(request: NextRequest) {
     let streamOpen = true;
 
     try {
-      const body: ComfyUIProcessRequest = await request.json();
+      let body: ComfyUIProcessRequest;
+      try {
+        const rawBody = await request.text();
+        if (!rawBody.trim()) {
+          // Client aborted before the body was sent — nothing to do.
+          closeStream(controller);
+          return;
+        }
+        body = JSON.parse(rawBody) as ComfyUIProcessRequest;
+      } catch {
+        sendStreamError(controller, 'Invalid request body');
+        return;
+      }
+
       const { imageId, config, workflow: customWorkflow, useImage = true, width = 1024, height = 1024 } = body;
 
       if (!config) {
@@ -327,8 +340,6 @@ export async function POST(request: NextRequest) {
       const progressAggregator = createProgressAggregator(getSamplingPhases(config));
       
       for await (const update of pollComfyUIJob(promptId)) {
-        if (!streamOpen) break; // Stop if stream is closed
-        
         lastUpdate = update;
         console.log(`[Process Route] Received update:`, { 
           status: update.status, 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ComfyUIProgress } from '@/components/ComfyUIProgress';
 import { PageShell, RouteFallback } from '@/components/PageShell';
@@ -39,9 +39,9 @@ function ProcessContent() {
     setReady(true);
   }, [configParam]);
 
-  const handleProcessingComplete = (imageUrl: string) => {
+  const handleProcessingComplete = useCallback((imageUrl: string) => {
     router.push(`/complete?imageUrl=${encodeURIComponent(imageUrl)}`);
-  };
+  }, [router]);
 
   if (!ready) {
     return (

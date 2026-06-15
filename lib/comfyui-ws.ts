@@ -203,8 +203,12 @@ export async function* streamComfyUIProgress(
       isClosed = true;
       clearTimeout(timeoutId);
     }
-    if (pendingResolve && executionCompleted) {
-      pendingResolve({ status: 'processing', executionComplete: true });
+    if (pendingResolve) {
+      pendingResolve(
+        executionCompleted
+          ? { status: 'processing', executionComplete: true }
+          : { status: 'timeout' }
+      );
     }
   });
 
