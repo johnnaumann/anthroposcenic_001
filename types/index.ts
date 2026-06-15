@@ -78,7 +78,7 @@ export interface ComfyUIProgressProps {
 }
 
 export interface PipelineStatusProps {
-  step: 'upload' | 'describe' | 'edit' | 'configure' | 'process' | 'complete';
+  step: 'upload' | 'describe' | 'configure' | 'process' | 'complete';
   error?: string;
 }
 

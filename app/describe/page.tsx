@@ -13,7 +13,7 @@ function DescribeContent() {
 
   const handleDescriptionComplete = (description: string) => {
     const encodedDescription = encodeURIComponent(description);
-    router.push(`/edit?imageId=${imageId}&description=${encodedDescription}`);
+    router.push(`/configure?imageId=${imageId}&description=${encodedDescription}`);
   };
 
   if (!imageId) {
