@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageShell, RouteFallback } from '@/components/PageShell';
@@ -11,6 +12,7 @@ function CompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const imageUrl = searchParams.get('imageUrl');
+  const imageId = searchParams.get('imageId');
 
   if (!imageUrl) {
     return (
@@ -23,30 +25,70 @@ function CompleteContent() {
   }
 
   return (
-    <PageShell>
+    <PageShell wide={!!imageId}>
       <div className="space-y-5">
-        <div className="overflow-hidden rounded-lg">
-          <img
-            src={imageUrl}
-            alt="Reinterpreted result"
-            className="mx-auto max-h-[70vh] w-full object-contain"
-          />
-        </div>
+        {imageId ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <figure className="space-y-2">
+              <div className="relative h-[60vh] w-full overflow-hidden rounded-lg border border-border bg-muted/20">
+                <Image
+                  src={`/api/images/${imageId}`}
+                  alt="Original artwork"
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 100vw, 50vw"
+                  className="object-contain"
+                />
+              </div>
+              <figcaption className="text-center text-xs uppercase tracking-wider text-muted-foreground">
+                Original
+              </figcaption>
+            </figure>
+            <figure className="space-y-2">
+              <div className="relative h-[60vh] w-full overflow-hidden rounded-lg border border-border bg-muted/20">
+                <Image
+                  src={imageUrl}
+                  alt="Reinterpretation"
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 100vw, 50vw"
+                  className="object-contain"
+                />
+              </div>
+              <figcaption className="text-center text-xs uppercase tracking-wider text-muted-foreground">
+                Reinterpretation
+              </figcaption>
+            </figure>
+          </div>
+        ) : (
+          <div className="relative mx-auto h-[70vh] w-full overflow-hidden rounded-lg">
+            <Image
+              src={imageUrl}
+              alt="Reinterpreted result"
+              fill
+              unoptimized
+              sizes="100vw"
+              className="object-contain"
+            />
+          </div>
+        )}
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button onClick={() => router.push('/upload')}>
             <RotateCcw />
             Reinterpret another
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={imageUrl} download="anthroposcenic.png">
+              <Download />
+              Download
+            </a>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/archive">
               <Images />
               Archive
             </Link>
-          </Button>
-          <Button variant="outline" onClick={() => window.open(imageUrl, '_blank')}>
-            <Download />
-            Open full size
           </Button>
         </div>
       </div>

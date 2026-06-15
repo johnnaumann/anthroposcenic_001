@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
-import { countPromptTags, countPromptWords } from '@/lib/prompt-limits';
+import { countPromptWords } from '@/lib/prompt-limits';
 import { toast } from 'sonner';
 
 interface DescriptionStreamProps {
@@ -127,14 +127,31 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
     navigator.clipboard.writeText(description);
   };
 
+  // Silent "thinking" phase (qwen3-vl reasons before emitting any text) — show a
+  // friendly state instead of a bare spinner so it doesn't read as stuck.
+  if (isStreaming && !description) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Reading the artwork…</p>
+          <p className="mx-auto max-w-sm text-xs leading-relaxed text-muted-foreground">
+            Studying style, mood, composition and technique to write a prompt worth riffing on.
+            This can take ~30–60s with the high-detail model.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="relative">
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder={isStreaming ? 'Generating prompt…' : 'The generated prompt will appear here'}
-          className="h-[240px] resize-none overflow-hidden field-sizing-fixed font-mono !text-[12px] leading-relaxed"
+          placeholder="The generated prompt will appear here"
+          className="min-h-[200px] resize-none text-sm leading-relaxed"
           readOnly={isStreaming}
         />
         {isStreaming && (
@@ -147,11 +164,9 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">
           {isStreaming
-            ? description
-              ? `Streaming… · ${countPromptWords(description)} words · ${countPromptTags(description)} tags`
-              : 'Streaming…'
+            ? `Writing… · ${countPromptWords(description)} words`
             : description
-              ? `${countPromptWords(description)} words · ${countPromptTags(description)} tags`
+              ? `${countPromptWords(description)} words`
               : 'Waiting for image'}
         </span>
         {description && !isStreaming && (

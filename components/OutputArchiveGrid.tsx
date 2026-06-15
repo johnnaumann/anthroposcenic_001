@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, Loader2, Trash2, Wand2 } from 'lucide-react';
@@ -154,11 +155,13 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                 )}
               >
                 <div className="relative aspect-square overflow-hidden bg-muted/30">
-                  <img
+                  <Image
                     src={image.imageUrl}
                     alt={image.filename}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    fill
+                    unoptimized
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                    className="object-cover"
                   />
                 </div>
 

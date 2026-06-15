@@ -40,8 +40,10 @@ function ProcessContent() {
   }, [configParam]);
 
   const handleProcessingComplete = useCallback((imageUrl: string) => {
-    router.push(`/complete?imageUrl=${encodeURIComponent(imageUrl)}`);
-  }, [router]);
+    const params = new URLSearchParams({ imageUrl });
+    if (imageId) params.set('imageId', imageId); // carry the source for a before/after view
+    router.push(`/complete?${params.toString()}`);
+  }, [router, imageId]);
 
   if (!ready) {
     return (
