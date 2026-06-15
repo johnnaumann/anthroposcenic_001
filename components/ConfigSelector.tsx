@@ -28,6 +28,7 @@ interface ConfigSelectorProps {
 
 interface ComfyUIConfigOptions {
   checkpoints: string[];
+  flux?: { schnell: string | null; dev: string | null };
   samplers: string[];
   schedulers: string[];
   defaults: {
@@ -152,6 +153,8 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
   const [controlNetStrength, setControlNetStrength] = useState(0.65);
   const [freeU, setFreeU] = useState(true);
   const [qualityBoost, setQualityBoost] = useState(true);
+  // Flux speed/quality: 'fast' = schnell (4 steps), 'quality' = dev (20 steps).
+  const [fluxQuality, setFluxQuality] = useState<'fast' | 'quality'>('fast');
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -206,12 +209,25 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
     if (!checkpoint || !sampler || !description.trim()) {
       return;
     }
+    // Resolve the single "Flux" option to the real GGUF + step count via the speed toggle.
+    let finalCheckpoint = checkpoint;
+    let finalSteps = steps;
+    if (checkpoint === 'Flux') {
+      const f = configOptions?.flux;
+      const chosen = fluxQuality === 'fast' ? f?.schnell || f?.dev : f?.dev || f?.schnell;
+      if (!chosen) {
+        toast.error('No Flux model is installed.');
+        return;
+      }
+      finalCheckpoint = chosen;
+      finalSteps = fluxQuality === 'fast' ? 4 : 20;
+    }
     onConfigSelected({
       description,
-      checkpoint,
+      checkpoint: finalCheckpoint,
       sampler,
       scheduler,
-      steps,
+      steps: finalSteps,
       cfgScale,
       denoiseStrength,
       negativePrompt,
@@ -255,12 +271,36 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           disabled={disabled}
         />
         {isFlux && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Flux runs its own engine (guidance 3.5, euler/simple). Sampler, CFG,
-            scheduler and the Detail &amp; refinement options below don&apos;t apply — just
-            tune <span className="text-foreground">Denoise</span> (riff strength) and{' '}
-            <span className="text-foreground">Steps</span>.
-          </p>
+          <div className="space-y-2">
+            <div className="flex gap-1 rounded-lg border border-border p-1">
+              <button
+                type="button"
+                disabled={disabled || !configOptions.flux?.schnell}
+                onClick={() => setFluxQuality('fast')}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-40',
+                  fluxQuality === 'fast' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Fast · schnell <span className="text-muted-foreground">~2 min</span>
+              </button>
+              <button
+                type="button"
+                disabled={disabled || !configOptions.flux?.dev}
+                onClick={() => setFluxQuality('quality')}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-40',
+                  fluxQuality === 'quality' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Quality · dev <span className="text-muted-foreground">~13 min</span>
+              </button>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Flux runs its own engine — Sampler, CFG, scheduler and the Detail &amp; refinement
+              options below don&apos;t apply. Just tune <span className="text-foreground">Denoise</span> (riff strength).
+            </p>
+          </div>
         )}
       </div>
 

@@ -20,6 +20,8 @@ export async function GET() {
     // Flux first so it's the default for artistic reinterpretation. Failed-download
     // stub files are tiny, so we drop anything below a sane minimum size.
     let checkpoints: string[] = [];
+    // Resolved Flux GGUF filenames for the fast/quality toggle (schnell vs dev).
+    let flux: { schnell: string | null; dev: string | null } = { schnell: null, dev: null };
     try {
       const MIN_BYTES = 100 * 1024 * 1024; // 100 MB
 
@@ -50,12 +52,19 @@ export async function GET() {
         ...(await listModels('./comfyui/models/diffusion_models', ['.gguf', '.safetensors'])),
       ].filter((f) => /flux|\.gguf$/i.test(f));
 
-      // Flux first, then SDXL, then DreamShaper, then the rest (stable sort).
-      const SDXL_PATTERN = /(sdxl|juggernaut|playground|pony|dreamshaperxl|[-_.]xl[-_.]?)/i;
-      const rank = (cp: string) =>
-        /flux|\.gguf$/i.test(cp) ? -1 : SDXL_PATTERN.test(cp) ? 0 : /dreamshaper/i.test(cp) ? 1 : 2;
+      flux = {
+        schnell: fluxModels.find((f) => /schnell/i.test(f)) ?? null,
+        dev: fluxModels.find((f) => /dev/i.test(f)) ?? fluxModels.find((f) => !/schnell/i.test(f)) ?? null,
+      };
 
-      checkpoints = Array.from(new Set([...fluxModels, ...sdModels])).sort((a, b) => rank(a) - rank(b));
+      // Order SD checkpoints: SDXL > DreamShaper > the rest (stable sort).
+      const SDXL_PATTERN = /(sdxl|juggernaut|playground|pony|dreamshaperxl|[-_.]xl[-_.]?)/i;
+      const rank = (cp: string) => (SDXL_PATTERN.test(cp) ? 0 : /dreamshaper/i.test(cp) ? 1 : 2);
+      const sortedSd = Array.from(new Set(sdModels)).sort((a, b) => rank(a) - rank(b));
+
+      // Surface Flux as a single "Flux" option (the schnell/dev variant is chosen by the
+      // fast/quality toggle in the UI), listed first, then the SD checkpoints.
+      checkpoints = [...(flux.schnell || flux.dev ? ['Flux'] : []), ...sortedSd];
     } catch (error) {
       console.warn('Could not read model directories:', error);
       checkpoints = ['DreamShaper_8_pruned.safetensors', 'Deliberate_v2.safetensors'];
@@ -66,6 +75,7 @@ export async function GET() {
     
     return NextResponse.json({
       checkpoints,
+      flux,
       samplers,
       schedulers,
       defaults: {
