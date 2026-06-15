@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContentCard } from '@/components/PageShell';
 import { ComfyUIConfig } from '@/types';
 import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { cn } from '@/lib/utils';
@@ -298,7 +299,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
     : `${checkpoint} · ${steps} steps · denoise ${denoiseStrength}${hiresFix ? ' · hi-res' : ''}`;
 
   return (
-    <div className="space-y-4">
+    <ContentCard className="space-y-4">
       <div className="space-y-1.5">
         <FieldLabel
           label="Model"
@@ -439,6 +440,6 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
           <ArrowRight />
         </Button>
       </div>
-    </div>
+    </ContentCard>
   );
 }

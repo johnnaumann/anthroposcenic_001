@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContentCard } from '@/components/PageShell';
 import { OutputImageEntry, OutputImageListResponse } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -28,10 +29,41 @@ function formatFileSize(bytes: number): string {
 
 interface OutputArchiveGridProps {
   onBack?: () => void;
-  onLoadingChange?: (loading: boolean) => void;
 }
 
-export function OutputArchiveGrid({ onBack, onLoadingChange }: OutputArchiveGridProps) {
+/** Thumbnail that fades in once it has loaded — including images already in cache. */
+function ArchiveImage({ src, alt }: { src: string; alt: string }) {
+  const ref = useRef<HTMLImageElement | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const reveal = () => setLoaded(true);
+
+  useEffect(() => {
+    // A cached image can finish before React attaches onLoad; reveal it anyway.
+    if (ref.current?.complete && ref.current.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, []);
+
+  return (
+    <Image
+      ref={ref}
+      src={src}
+      alt={alt}
+      width={1024}
+      height={1024}
+      unoptimized
+      sizes="(max-width: 640px) 50vw, 33vw"
+      onLoad={reveal}
+      onError={reveal}
+      className={cn(
+        'h-auto w-full transition-opacity duration-700 ease-out',
+        loaded ? 'opacity-100' : 'opacity-0'
+      )}
+    />
+  );
+}
+
+export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
   const router = useRouter();
   const [images, setImages] = useState<OutputImageEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +72,6 @@ export function OutputArchiveGrid({ onBack, onLoadingChange }: OutputArchiveGrid
   const loadImages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
       setLoading(true);
-      onLoadingChange?.(true);
     }
     try {
       const response = await fetch('/api/outputs', { cache: 'no-store' });
@@ -54,13 +85,18 @@ export function OutputArchiveGrid({ onBack, onLoadingChange }: OutputArchiveGrid
     } finally {
       if (!options?.silent) {
         setLoading(false);
-        onLoadingChange?.(false);
       }
     }
-  }, [onLoadingChange]);
+  }, []);
 
+  const didInitialLoad = useRef(false);
   useEffect(() => {
-    loadImages();
+    // Fetch once. React Strict Mode (on in dev) double-invokes effects, which
+    // would toggle `loading` — and the page's card — twice, flickering a card
+    // behind the spinner. The guard keeps the load→loaded transition to one step.
+    if (didInitialLoad.current) return;
+    didInitialLoad.current = true;
+    void loadImages();
   }, [loadImages]);
 
   useEffect(() => {
@@ -141,102 +177,95 @@ export function OutputArchiveGrid({ onBack, onLoadingChange }: OutputArchiveGrid
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-base font-medium">Archive</h1>
-          <p className="text-sm text-muted-foreground">
-            Previously rendered images. Select one to reinterpret, or download and manage the archive.
-          </p>
+    <ContentCard>
+      <div className="space-y-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-base font-medium">Archive</h1>
+            <p className="text-sm text-muted-foreground">
+              Previously rendered images. Select one to reinterpret, or download and manage the archive.
+            </p>
+          </div>
+          {onBack && (
+            <Button variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft />
+              Back
+            </Button>
+          )}
         </div>
-        {onBack && (
-          <Button variant="outline" size="sm" onClick={onBack}>
-            <ArrowLeft />
-            Back
-          </Button>
+
+        {images.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
+            <p className="text-sm text-muted-foreground">No rendered images yet.</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => router.push('/upload')}>
+              Upload an image
+            </Button>
+          </div>
+        ) : (
+          <div className="columns-2 gap-3 sm:columns-3">
+            {images.map((image) => {
+              const isBusy = busyFilename === image.filename;
+
+              return (
+                <article
+                  key={image.filename}
+                  className={cn(
+                    'mb-3 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card transition-colors',
+                    isBusy && 'opacity-60'
+                  )}
+                >
+                  <div className="bg-muted/30">
+                    <ArchiveImage key={image.imageUrl} src={image.imageUrl} alt={image.filename} />
+                  </div>
+
+                  <div className="space-y-3 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">{image.filename}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatArchiveDate(image.createdAt)} · {formatFileSize(image.size)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="icon-sm"
+                        aria-label="Use image"
+                        title="Use"
+                        disabled={isBusy}
+                        onClick={() => handleUse(image)}
+                      >
+                        {isBusy ? <Loader2 className="animate-spin" /> : <Wand2 />}
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        aria-label="Download image"
+                        title="Download"
+                        disabled={isBusy}
+                        asChild
+                      >
+                        <a href={downloadUrl(image)} download={image.filename}>
+                          <Download />
+                        </a>
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        aria-label="Delete from archive"
+                        title="Delete"
+                        disabled={isBusy}
+                        onClick={() => handleDelete(image)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
       </div>
-
-      {images.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
-          <p className="text-sm text-muted-foreground">No rendered images yet.</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => router.push('/upload')}>
-            Upload an image
-          </Button>
-        </div>
-      ) : (
-        <div className="columns-2 gap-3 sm:columns-3">
-          {images.map((image) => {
-            const isBusy = busyFilename === image.filename;
-
-            return (
-              <article
-                key={image.filename}
-                className={cn(
-                  'mb-3 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card transition-colors',
-                  isBusy && 'opacity-60'
-                )}
-              >
-                <div className="bg-muted/30">
-                  <Image
-                    key={image.imageUrl}
-                    src={image.imageUrl}
-                    alt={image.filename}
-                    width={1024}
-                    height={1024}
-                    unoptimized
-                    sizes="(max-width: 640px) 50vw, 33vw"
-                    className="h-auto w-full"
-                  />
-                </div>
-
-                <div className="space-y-3 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium">{image.filename}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {formatArchiveDate(image.createdAt)} · {formatFileSize(image.size)}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      size="icon-sm"
-                      aria-label="Use image"
-                      title="Use"
-                      disabled={isBusy}
-                      onClick={() => handleUse(image)}
-                    >
-                      {isBusy ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="outline"
-                      aria-label="Download image"
-                      title="Download"
-                      disabled={isBusy}
-                      asChild
-                    >
-                      <a href={downloadUrl(image)} download={image.filename}>
-                        <Download />
-                      </a>
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="outline"
-                      aria-label="Delete from archive"
-                      title="Delete"
-                      disabled={isBusy}
-                      onClick={() => handleDelete(image)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    </ContentCard>
   );
 }

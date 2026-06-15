@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DescriptionStream } from '@/components/DescriptionStream';
-import { PageShell, RouteFallback } from '@/components/PageShell';
+import { ContentCard, PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
 import { savePipelineDescription, clearPipelineConfig } from '@/lib/pipeline-storage';
 
@@ -26,9 +26,11 @@ function DescribeContent() {
   if (!imageId) {
     return (
       <PageShell error="No image found. Please start from the upload step.">
-        <Button variant="outline" onClick={() => router.push('/upload')}>
-          Go to upload
-        </Button>
+        <ContentCard>
+          <Button variant="outline" onClick={() => router.push('/upload')}>
+            Go to upload
+          </Button>
+        </ContentCard>
       </PageShell>
     );
   }

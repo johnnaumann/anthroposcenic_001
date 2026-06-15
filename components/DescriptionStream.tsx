@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ContentCard } from '@/components/PageShell';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
 import { countPromptWords } from '@/lib/prompt-limits';
 import { toast } from 'sonner';
@@ -145,7 +146,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
   }
 
   return (
-    <div className="space-y-4">
+    <ContentCard className="space-y-4">
       <div className="relative">
         <Textarea
           value={description}
@@ -182,6 +183,6 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           </div>
         )}
       </div>
-    </div>
+    </ContentCard>
   );
 }

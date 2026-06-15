@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ConfigSelector } from '@/components/ConfigSelector';
-import { PageShell, RouteFallback } from '@/components/PageShell';
+import { ContentCard, PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
@@ -43,9 +43,11 @@ function ConfigureContent() {
   if (!imageId || !description) {
     return (
       <PageShell error="Missing image or description. Please start from the upload step.">
-        <Button variant="outline" onClick={() => router.push('/upload')}>
-          Go to upload
-        </Button>
+        <ContentCard>
+          <Button variant="outline" onClick={() => router.push('/upload')}>
+            Go to upload
+          </Button>
+        </ContentCard>
       </PageShell>
     );
   }

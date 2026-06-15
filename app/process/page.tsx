@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ComfyUIProgress } from '@/components/ComfyUIProgress';
-import { PageShell, RouteFallback } from '@/components/PageShell';
+import { ContentCard, PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
@@ -59,9 +59,11 @@ function ProcessContent() {
   if (!imageId) {
     return (
       <PageShell error="Missing image. Please start from the upload step.">
-        <Button variant="outline" onClick={() => router.push('/upload')}>
-          Go to upload
-        </Button>
+        <ContentCard>
+          <Button variant="outline" onClick={() => router.push('/upload')}>
+            Go to upload
+          </Button>
+        </ContentCard>
       </PageShell>
     );
   }
@@ -69,24 +71,28 @@ function ProcessContent() {
   if (!config) {
     return (
       <PageShell error="Missing configuration. Please go back and configure settings.">
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/configure?imageId=${imageId}`)}
-        >
-          Go to configure
-        </Button>
+        <ContentCard>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/configure?imageId=${imageId}`)}
+          >
+            Go to configure
+          </Button>
+        </ContentCard>
       </PageShell>
     );
   }
 
   return (
     <PageShell>
-      <ComfyUIProgress
-        imageId={imageId}
-        config={config}
-        onProcessingComplete={handleProcessingComplete}
-        disabled={false}
-      />
+      <ContentCard>
+        <ComfyUIProgress
+          imageId={imageId}
+          config={config}
+          onProcessingComplete={handleProcessingComplete}
+          disabled={false}
+        />
+      </ContentCard>
     </PageShell>
   );
 }

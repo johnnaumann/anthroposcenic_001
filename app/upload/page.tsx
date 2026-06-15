@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageUploadZone } from '@/components/ImageUploadZone';
-import { PageShell } from '@/components/PageShell';
+import { ContentCard, PageShell } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
 import { Images } from 'lucide-react';
 import { UploadResponse } from '@/types';
@@ -22,15 +22,17 @@ export default function UploadPage() {
 
   return (
     <PageShell>
-      <div className="space-y-6">
-        <ImageUploadZone onUploadComplete={handleUploadComplete} />
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => router.push('/archive')}>
-            <Images />
-            Choose from archive
-          </Button>
+      <ContentCard>
+        <div className="space-y-6">
+          <ImageUploadZone onUploadComplete={handleUploadComplete} />
+          <div className="flex justify-center">
+            <Button variant="outline" onClick={() => router.push('/archive')}>
+              <Images />
+              Choose from archive
+            </Button>
+          </div>
         </div>
-      </div>
+      </ContentCard>
     </PageShell>
   );
 }
