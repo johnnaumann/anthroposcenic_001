@@ -18,7 +18,7 @@ function DescribeContent() {
 
   if (!imageId) {
     return (
-      <PageShell step="describe" error="No image found. Please start from the upload step.">
+      <PageShell error="No image found. Please start from the upload step.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -27,7 +27,7 @@ function DescribeContent() {
   }
 
   return (
-    <PageShell step="describe">
+    <PageShell>
       <DescriptionStream
         imageId={imageId}
         onDescriptionComplete={handleDescriptionComplete}

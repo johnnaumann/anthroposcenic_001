@@ -13,7 +13,7 @@ export default function UploadPage() {
   };
 
   return (
-    <PageShell step="upload">
+    <PageShell>
       <ImageUploadZone
         onUploadComplete={handleUploadComplete}
         onRemove={() => router.push('/upload')}
