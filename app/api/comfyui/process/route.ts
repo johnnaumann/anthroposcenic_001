@@ -36,7 +36,7 @@ async function findImageFile(imageId: string): Promise<{ path: string; mimeType:
 }
 
 export async function POST(request: NextRequest) {
-  let controller: ReadableStreamDefaultController<Uint8Array>;
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
 
   const stream = new ReadableStream({
     start(ctrl) {
@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
 
   // Process asynchronously
   (async () => {
+    let streamOpen = true;
+
     try {
       const body: ComfyUIProcessRequest = await request.json();
       const { imageId, config, workflow: customWorkflow, useImage = true, width = 1024, height = 1024 } = body;
@@ -321,7 +323,6 @@ export async function POST(request: NextRequest) {
 
       // Poll for job status
       let lastUpdate: { status: string; progress?: number; imageUrl?: string; error?: string } | null = null;
-      let streamOpen = true;
       
       for await (const update of pollComfyUIJob(promptId)) {
         if (!streamOpen) break; // Stop if stream is closed

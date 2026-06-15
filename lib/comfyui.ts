@@ -1200,7 +1200,7 @@ export async function* pollComfyUIJob(
           (msg) => Array.isArray(msg) && msg[0] === 'execution_error' || msg[0] === 'execution_interrupted'
         );
         if (hasFailureMessage) {
-          const failureMsg = jobData.status.messages.find(
+          const failureMsg = jobData.status?.messages?.find(
             (msg) => Array.isArray(msg) && (msg[0] === 'execution_error' || msg[0] === 'execution_interrupted')
           );
           console.error(`ComfyUI job ${promptId} failed:`, failureMsg);

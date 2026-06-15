@@ -38,7 +38,7 @@ export function getAvailableVisionModels(): OllamaModel[] {
  * Get a specific vision model by name
  */
 export function getVisionModel(modelName: string): OllamaModel | undefined {
-  return modelsConfig.ollama.vision[modelName];
+  return (modelsConfig as ModelsConfig).ollama.vision[modelName];
 }
 
 /**

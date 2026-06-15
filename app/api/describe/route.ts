@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
           tokenCount++;
           fullResponse += token;
           // Only send if stream is still open
-          if (streamOpen) {
+          if (streamOpen && controller) {
             const wasSent = sendStreamMessage(controller, {
               type: 'token',
               data: token,

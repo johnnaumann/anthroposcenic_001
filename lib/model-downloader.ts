@@ -116,7 +116,7 @@ export async function downloadCheckpoint(
   }
 
   // Check if we have a download URL for this model
-  let downloadUrl = MODEL_REGISTRY[checkpoint];
+  let downloadUrl: string | null = MODEL_REGISTRY[checkpoint] ?? null;
   
   // If not in registry, try to construct a Hugging Face URL
   if (!downloadUrl) {
@@ -213,7 +213,7 @@ export async function downloadCheckpoint(
 
         // Close the file stream properly
         await new Promise<void>((resolve, reject) => {
-          fileStream.end((err) => {
+          fileStream.end((err: Error | null | undefined) => {
             if (err) reject(err);
             else resolve();
           });

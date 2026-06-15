@@ -33,7 +33,7 @@ async function findImageFile(imageId: string): Promise<{ path: string; mimeType:
 }
 
 export async function POST(request: NextRequest) {
-  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
 
   const stream = new ReadableStream({
     start(ctrl) {
@@ -44,11 +44,6 @@ export async function POST(request: NextRequest) {
   // Process asynchronously
   (async () => {
     try {
-      if (!controller) {
-        console.error('[Transform] Controller not initialized');
-        return;
-      }
-
       const body = await request.json();
       const { imageId, originalDescription, model } = body;
 
@@ -71,7 +66,7 @@ export async function POST(request: NextRequest) {
       // Find and read the image file
       const imageFile = await findImageFile(imageId);
       if (!imageFile) {
-        if (controller) sendStreamError(controller, 'Image not found');
+        sendStreamError(controller, 'Image not found');
         return;
       }
 
@@ -129,18 +124,18 @@ export async function POST(request: NextRequest) {
         }
 
         // Send completion message only if stream is still open
-        if (streamOpen && controller && transformedDescription.trim()) {
+        if (streamOpen && transformedDescription.trim()) {
           sendStreamMessage(controller, {
             type: 'done',
             data: transformedDescription.trim(),
           });
           closeStream(controller);
-        } else if (streamOpen && controller && !transformedDescription.trim()) {
+        } else if (streamOpen && !transformedDescription.trim()) {
           sendStreamError(controller, 'Failed to generate transformed description');
         }
       } catch (streamError) {
         // If streaming fails but stream is still open, send error
-        if (streamOpen && controller) {
+        if (streamOpen) {
           console.error('Transform streaming error:', streamError);
           sendStreamError(
             controller,
@@ -153,19 +148,13 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error('Transform error:', error);
-      // Only send error if stream is still open and controller exists
-      if (controller) {
-        try {
-          sendStreamError(
-            controller,
-            error instanceof Error ? error.message : 'Failed to transform description'
-          );
-        } catch (sendError) {
-          // Stream might already be closed, just log
-          console.error('Failed to send error message (stream may be closed):', sendError);
-        }
-      } else {
-        console.error('Transform error but controller not available:', error);
+      try {
+        sendStreamError(
+          controller,
+          error instanceof Error ? error.message : 'Failed to transform description'
+        );
+      } catch (sendError) {
+        console.error('Failed to send error message (stream may be closed):', sendError);
       }
     }
   })();
