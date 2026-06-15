@@ -53,17 +53,17 @@ function FieldLabel({ label, tip }: { label: string; tip: string }) {
       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="text-muted-foreground/60 hover:text-muted-foreground"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-muted-foreground"
             aria-label={`About ${label}`}
           >
-            <HelpCircle />
-          </Button>
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
         </TooltipTrigger>
-        <TooltipContent>{tip}</TooltipContent>
+        <TooltipContent side="top" sideOffset={6}>
+          {tip}
+        </TooltipContent>
       </Tooltip>
     </div>
   );

@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
-import { Download, RotateCcw } from 'lucide-react';
+import { Download, Images, RotateCcw } from 'lucide-react';
 
 function CompleteContent() {
   const router = useRouter();
@@ -36,6 +37,12 @@ function CompleteContent() {
           <Button onClick={() => router.push('/upload')}>
             <RotateCcw />
             Reinterpret another
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/archive">
+              <Images />
+              Archive
+            </Link>
           </Button>
           <Button variant="outline" onClick={() => window.open(imageUrl, '_blank')}>
             <Download />

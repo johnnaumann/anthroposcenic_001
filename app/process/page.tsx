@@ -5,8 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ComfyUIProgress } from '@/components/ComfyUIProgress';
 import { PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
-import { toast } from 'sonner';
+import {
+  loadPipelineConfig,
+  parsePipelineConfigParam,
+  savePipelineConfig,
+} from '@/lib/pipeline-storage';
 
 function ProcessContent() {
   const router = useRouter();
@@ -14,29 +19,44 @@ function ProcessContent() {
   const imageId = searchParams.get('imageId');
   const configParam = searchParams.get('config');
   const [config, setConfig] = useState<ComfyUIConfig | null>(null);
-  const [configError, setConfigError] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let resolvedConfig: ComfyUIConfig | null = null;
+
     if (configParam) {
-      try {
-        const decodedConfig = JSON.parse(decodeURIComponent(configParam)) as ComfyUIConfig;
-        setConfig(decodedConfig);
-        setConfigError(false);
-      } catch (e) {
-        console.error('Failed to parse config:', e);
-        toast.error('Failed to read the configuration. Please go back and reconfigure.');
-        setConfigError(true);
+      resolvedConfig = parsePipelineConfigParam(configParam);
+      if (resolvedConfig) {
+        savePipelineConfig(resolvedConfig);
       }
     }
+
+    if (!resolvedConfig) {
+      resolvedConfig = loadPipelineConfig();
+    }
+
+    setConfig(resolvedConfig);
+    setReady(true);
   }, [configParam]);
 
   const handleProcessingComplete = (imageUrl: string) => {
     router.push(`/complete?imageUrl=${encodeURIComponent(imageUrl)}`);
   };
 
-  if (!imageId || (!config && !configError)) {
+  if (!ready) {
     return (
-      <PageShell error="Missing image or configuration. Please go back and configure settings.">
+      <PageShell>
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading configuration…
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (!imageId) {
+    return (
+      <PageShell error="Missing image. Please start from the upload step.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -44,10 +64,13 @@ function ProcessContent() {
     );
   }
 
-  if (configError || !config) {
+  if (!config) {
     return (
-      <PageShell>
-        <Button variant="outline" onClick={() => router.push('/configure')}>
+      <PageShell error="Missing configuration. Please go back and configure settings.">
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/configure?imageId=${imageId}`)}
+        >
           Go to configure
         </Button>
       </PageShell>

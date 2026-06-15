@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 /** Minimal centered loader for route-level <Suspense> fallbacks. */
@@ -17,6 +18,7 @@ export function RouteFallback() {
 
 interface PageShellProps {
   error?: string;
+  wide?: boolean;
   children: React.ReactNode;
 }
 
@@ -24,7 +26,7 @@ interface PageShellProps {
  * Shared chrome: a theme toggle and the step's content in an off-black card
  * centered on the near-black page.
  */
-export function PageShell({ error, children }: PageShellProps) {
+export function PageShell({ error, wide, children }: PageShellProps) {
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -38,7 +40,7 @@ export function PageShell({ error, children }: PageShellProps) {
       </div>
 
       <main className="flex flex-1 px-5 py-10">
-        <div className="m-auto w-full max-w-xl">
+        <div className={cn('m-auto w-full', wide ? 'max-w-5xl' : 'max-w-xl')}>
           <Card className="p-6 shadow-2xl shadow-black/40">{children}</Card>
         </div>
       </main>

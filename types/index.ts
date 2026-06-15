@@ -8,6 +8,17 @@ export interface UploadResponse {
   mimeType: string;
 }
 
+export interface OutputImageEntry {
+  filename: string;
+  imageUrl: string;
+  createdAt: string;
+  size: number;
+}
+
+export interface OutputImageListResponse {
+  images: OutputImageEntry[];
+}
+
 export interface DescribeRequest {
   imageId: string;
   model?: string;
@@ -48,10 +59,31 @@ export interface ComfyUIProcessRequest {
   height?: number; // Image height for txt2img (default: 1024)
 }
 
+export interface ProcessingProgressData {
+  overall: number;
+  phaseLabel: string;
+  phaseIndex: number;
+  phaseCount: number;
+  stepProgress: number;
+  step?: number;
+  stepMax?: number;
+}
+
+export interface ComfyUIProgressUpdate {
+  status: string;
+  progress?: number;
+  step?: number;
+  stepMax?: number;
+  executionComplete?: boolean;
+  imageUrl?: string;
+  error?: string;
+}
+
 export interface ComfyUIStreamChunk {
   type: 'status' | 'progress' | 'image' | 'done' | 'error';
   status?: string;
   progress?: number;
+  data?: string | ProcessingProgressData;
   imageUrl?: string;
   imageData?: string;
   error?: string;

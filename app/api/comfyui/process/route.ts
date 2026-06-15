@@ -7,6 +7,7 @@ import { startComfyUI } from '@/lib/comfyui-startup';
 import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
+import { createProgressAggregator, getSamplingPhases } from '@/lib/processing-progress';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 const EXPORTS_DIR = process.env.EXPORTS_DIR || './data/exports';
@@ -322,7 +323,8 @@ export async function POST(request: NextRequest) {
       });
 
       // Poll for job status
-      let lastUpdate: { status: string; progress?: number; imageUrl?: string; error?: string } | null = null;
+      let lastUpdate: import('@/types').ComfyUIProgressUpdate | null = null;
+      const progressAggregator = createProgressAggregator(getSamplingPhases(config));
       
       for await (const update of pollComfyUIJob(promptId)) {
         if (!streamOpen) break; // Stop if stream is closed
@@ -492,9 +494,20 @@ export async function POST(request: NextRequest) {
           }
           return;
         } else if (update.progress !== undefined && streamOpen) {
+          const snapshot = progressAggregator.update(
+            update.progress,
+            update.step,
+            update.stepMax
+          );
           streamOpen = sendStreamMessage(controller, {
             type: 'progress',
-            data: update.progress,
+            data: snapshot,
+          });
+        } else if (update.executionComplete && streamOpen) {
+          const snapshot = progressAggregator.complete();
+          streamOpen = sendStreamMessage(controller, {
+            type: 'progress',
+            data: snapshot,
           });
         } else if (streamOpen) {
           streamOpen = sendStreamMessage(controller, {

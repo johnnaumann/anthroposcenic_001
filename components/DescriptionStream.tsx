@@ -134,7 +134,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={isStreaming ? 'Generating prompt…' : 'The generated prompt will appear here'}
-          className="min-h-[240px] font-mono text-[13px] leading-relaxed"
+          className="min-h-[240px] resize-none font-mono text-[13px] leading-relaxed"
           readOnly={isStreaming}
         />
         {isStreaming && (

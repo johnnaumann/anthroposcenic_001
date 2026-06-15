@@ -3,6 +3,7 @@
  */
 
 import WebSocket from 'ws';
+import type { ComfyUIProgressUpdate } from '@/types';
 
 const COMFYUI_WS_URL = process.env.COMFYUI_WS_URL || 'ws://localhost:8188/ws';
 
@@ -38,12 +39,12 @@ export interface ComfyUIWebSocketMessage {
 export async function* streamComfyUIProgress(
   promptId: string,
   timeout: number = 600000 // 10 minutes
-): AsyncGenerator<{ status: string; progress?: number; imageUrl?: string; error?: string }, void, unknown> {
+): AsyncGenerator<ComfyUIProgressUpdate, void, unknown> {
   const ws = new WebSocket(COMFYUI_WS_URL);
-  const messageQueue: Array<{ status: string; progress?: number; imageUrl?: string; error?: string }> = [];
+  const messageQueue: Array<ComfyUIProgressUpdate> = [];
   let isClosed = false;
   let executionCompleted = false;
-  let pendingResolve: ((value: { status: string; progress?: number; imageUrl?: string; error?: string }) => void) | null = null;
+  let pendingResolve: ((value: ComfyUIProgressUpdate) => void) | null = null;
 
   const timeoutId = setTimeout(() => {
     if (!isClosed) {
@@ -56,7 +57,7 @@ export async function* streamComfyUIProgress(
     }
   }, timeout);
 
-  const sendUpdate = (update: { status: string; progress?: number; imageUrl?: string; error?: string }) => {
+  const sendUpdate = (update: ComfyUIProgressUpdate) => {
     if (pendingResolve) {
       pendingResolve(update);
       pendingResolve = null;
@@ -99,7 +100,12 @@ export async function* streamComfyUIProgress(
         
         // Use actual progress value (no adjustment) to match terminal output
         console.log(`[WebSocket] Progress: ${current}/${max} = ${progress}% (node: ${progressData?.node || message.node || 'N/A'})`);
-        sendUpdate({ status: 'processing', progress });
+        sendUpdate({
+          status: 'processing',
+          progress,
+          step: current,
+          stepMax: max,
+        });
       }
       
       // Handle progress_state messages (alternative format with node details)
@@ -139,20 +145,15 @@ export async function* streamComfyUIProgress(
         if (!data || data.prompt_id === promptId) {
           executionCompleted = true;
           console.log(`[WebSocket] Execution success for prompt ${promptId} - job completed!`);
-          // Send completion signal with progress 100
-          sendUpdate({ status: 'processing', progress: 100 });
+          sendUpdate({ status: 'processing', executionComplete: true });
           // Close after short delay to allow history/filesystem to populate
           setTimeout(() => {
             if (!isClosed) {
               isClosed = true;
               clearTimeout(timeoutId);
               ws.close();
-              if (pendingResolve) {
-                // Send a completion signal that will trigger filesystem check
-                pendingResolve({ status: 'processing', progress: 100 });
-              }
             }
-          }, 1000); // Reduced delay to 1s
+          }, 1000);
         }
       }
       
@@ -202,8 +203,8 @@ export async function* streamComfyUIProgress(
       isClosed = true;
       clearTimeout(timeoutId);
     }
-    if (pendingResolve && !executionCompleted) {
-      pendingResolve({ status: 'processing', progress: 100 });
+    if (pendingResolve && executionCompleted) {
+      pendingResolve({ status: 'processing', executionComplete: true });
     }
   });
 
@@ -213,7 +214,7 @@ export async function* streamComfyUIProgress(
         yield messageQueue.shift()!;
       } else {
         // Wait for next message
-        yield new Promise<{ status: string; progress?: number; imageUrl?: string; error?: string }>((resolve) => {
+        yield new Promise<ComfyUIProgressUpdate>((resolve) => {
           pendingResolve = resolve;
         });
       }

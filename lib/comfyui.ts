@@ -990,7 +990,7 @@ export async function* pollComfyUIJob(
   maxAttempts: number = 300, // Increased to 10 minutes (300 * 2s = 600s)
   intervalMs: number = 2000,
   useWebSocket: boolean = true // Enable WebSocket for real-time progress
-): AsyncGenerator<{ status: string; progress?: number; imageUrl?: string; error?: string }, void, unknown> {
+): AsyncGenerator<import('@/types').ComfyUIProgressUpdate, void, unknown> {
   const jobStartTime = Date.now(); // Track when job started for filesystem fallback
   // Try WebSocket first if enabled
   if (useWebSocket) {
@@ -1018,10 +1018,10 @@ export async function* pollComfyUIJob(
           lastProgress = update.progress;
         }
         
-        // If execution completed via WebSocket (progress 100%), mark as completed
-        if (update.progress === 100) {
+        // Only treat execution_success as workflow completion — each KSampler also hits 100%.
+        if (update.executionComplete) {
           wsCompleted = true;
-          console.log(`[Poll] WebSocket indicated completion (progress: 100%), checking for image immediately...`);
+          console.log(`[Poll] WebSocket indicated workflow completion, checking for image immediately...`);
           
           // Immediately check filesystem when we get 100% progress
           // Don't wait for WebSocket to close

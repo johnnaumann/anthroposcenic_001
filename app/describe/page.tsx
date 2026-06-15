@@ -1,19 +1,26 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DescriptionStream } from '@/components/DescriptionStream';
 import { PageShell, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
+import { savePipelineDescription, clearPipelineConfig } from '@/lib/pipeline-storage';
 
 function DescribeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
 
+  useEffect(() => {
+    if (imageId) {
+      clearPipelineConfig();
+    }
+  }, [imageId]);
+
   const handleDescriptionComplete = (description: string) => {
-    const encodedDescription = encodeURIComponent(description);
-    router.push(`/configure?imageId=${imageId}&description=${encodedDescription}`);
+    savePipelineDescription(description);
+    router.push(`/configure?imageId=${imageId}`);
   };
 
   if (!imageId) {

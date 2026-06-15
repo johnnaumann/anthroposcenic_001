@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { OUTPUT_DIR } from '@/lib/output-archive';
 
 const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
-const OUTPUT_DIR = join(process.cwd(), 'comfyui', 'output');
 
 /**
  * GET /api/comfyui/output?filename=...
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const filename = searchParams.get('filename');
+    const download = searchParams.get('download') === '1';
 
     if (!filename) {
       return NextResponse.json(
@@ -43,6 +44,9 @@ export async function GET(request: NextRequest) {
           headers: {
             'Content-Type': mimeType,
             'Cache-Control': 'public, max-age=31536000, immutable',
+            ...(download
+              ? { 'Content-Disposition': `attachment; filename="${filename}"` }
+              : {}),
           },
         });
       } catch (error) {
@@ -63,6 +67,9 @@ export async function GET(request: NextRequest) {
           headers: {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=31536000, immutable',
+            ...(download
+              ? { 'Content-Disposition': `attachment; filename="${filename}"` }
+              : {}),
           },
         });
       }
