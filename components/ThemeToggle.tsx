@@ -10,8 +10,18 @@ export function ThemeToggle() {
 
   useEffect(() => setMounted(true), []);
 
+const themeSwitchClassName =
+  '[&_[data-slot=switch-thumb]]:!bg-black dark:[&_[data-slot=switch-thumb]]:!bg-white';
+
   if (!mounted) {
-    return <Switch size="sm" disabled aria-label="Toggle dark mode" />;
+    return (
+      <Switch
+        size="default"
+        disabled
+        className={themeSwitchClassName}
+        aria-label="Toggle dark mode"
+      />
+    );
   }
 
   const isDark = resolvedTheme === 'dark';
@@ -21,6 +31,7 @@ export function ThemeToggle() {
       size="sm"
       checked={isDark}
       onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+      className={themeSwitchClassName}
       aria-label="Toggle dark mode"
     />
   );
