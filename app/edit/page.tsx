@@ -28,7 +28,7 @@ function EditContent() {
 
   if (!imageId || !descriptionParam) {
     return (
-      <PageShell step="edit" error="Missing image or description. Please start from the upload step.">
+      <PageShell error="Missing image or description. Please start from the upload step.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -37,7 +37,7 @@ function EditContent() {
   }
 
   return (
-    <PageShell step="edit">
+    <PageShell>
       <DescriptionEditor
         description={description}
         onDescriptionChange={setDescription}

@@ -27,7 +27,7 @@ function ConfigureContent() {
 
   if (!imageId || !descriptionParam) {
     return (
-      <PageShell step="configure" error="Missing image or description. Please start from the upload step.">
+      <PageShell error="Missing image or description. Please start from the upload step.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -36,7 +36,7 @@ function ConfigureContent() {
   }
 
   return (
-    <PageShell step="configure">
+    <PageShell>
       <ConfigSelector
         description={description}
         onConfigSelected={handleConfigSelected}

@@ -33,7 +33,7 @@ function ProcessContent() {
 
   if (!imageId || (!config && !error)) {
     return (
-      <PageShell step="process" error="Missing image or configuration. Please go back and configure settings.">
+      <PageShell error="Missing image or configuration. Please go back and configure settings.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -42,7 +42,7 @@ function ProcessContent() {
   }
 
   return (
-    <PageShell step="process" error={error || undefined}>
+    <PageShell error={error || undefined}>
       {config && (
         <ComfyUIProgress
           imageId={imageId}

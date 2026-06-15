@@ -13,7 +13,7 @@ function CompleteContent() {
 
   if (!imageUrl) {
     return (
-      <PageShell step="complete" error="No result image found. Please start from the upload step.">
+      <PageShell error="No result image found. Please start from the upload step.">
         <Button variant="outline" onClick={() => router.push('/upload')}>
           Go to upload
         </Button>
@@ -22,7 +22,7 @@ function CompleteContent() {
   }
 
   return (
-    <PageShell step="complete">
+    <PageShell>
       <div className="space-y-5">
         <div className="overflow-hidden rounded-lg">
           <img
