@@ -16,13 +16,33 @@ export function RouteFallback() {
   );
 }
 
+/** Full-height centered block inside PageShell (loaders, empty states). */
+export function PageCenter({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex min-h-[calc(100dvh-5rem)] flex-1 flex-col items-center justify-center text-center',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** Centered loading state for use inside PageShell (no card). */
 export function PageLoader({ label }: { label: string }) {
   return (
-    <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
+    <PageCenter className="gap-2 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
       {label}
-    </div>
+    </PageCenter>
   );
 }
 
@@ -50,8 +70,8 @@ interface PageShellProps {
 
 /**
  * Shared page chrome: a theme toggle and a centered content column (width set by
- * `wide`). PageShell intentionally imposes no card — compose <ContentCard>, or
- * anything else, around the content that should be framed.
+ * `wide`). Pipeline steps (default) vertically center their content; wide layouts
+ * (e.g. archive) stay top-aligned for scrollable grids.
  */
 export function PageShell({ error, wide, children }: PageShellProps) {
   useEffect(() => {
@@ -66,11 +86,11 @@ export function PageShell({ error, wide, children }: PageShellProps) {
         <ThemeToggle />
       </div>
 
-      <main className="flex flex-1 flex-col px-5 py-10">
+      <main className="flex flex-1 flex-col items-center px-5 py-10">
         <div
           className={cn(
-            'm-auto flex w-full flex-1 flex-col',
-            wide ? 'max-w-5xl' : 'max-w-xl'
+            'flex w-full flex-1 flex-col',
+            wide ? 'max-w-5xl' : 'max-w-xl justify-center'
           )}
         >
           {children}

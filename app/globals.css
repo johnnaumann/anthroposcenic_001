@@ -140,11 +140,11 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
-    @apply font-sans;
+    @apply h-full font-sans;
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply min-h-full bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
   }

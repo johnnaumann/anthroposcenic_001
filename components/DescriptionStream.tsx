@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ContentCard } from '@/components/PageShell';
+import { ContentCard, PageCenter } from '@/components/PageShell';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
 import { countPromptWords } from '@/lib/prompt-limits';
 import { toast } from 'sonner';
@@ -138,7 +138,7 @@ export function DescriptionStream({ imageId, imageIds, onDescriptionComplete, di
   // friendly state instead of a bare spinner so it doesn't read as stuck.
   if (isStreaming && !description) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <PageCenter className="gap-4 px-4">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         <div className="space-y-1">
           <p className="text-sm font-medium">
@@ -150,7 +150,7 @@ export function DescriptionStream({ imageId, imageIds, onDescriptionComplete, di
               : 'Studying style, mood, composition and technique to write a prompt worth riffing on. This can take ~30–60s with the high-detail model.'}
           </p>
         </div>
-      </div>
+      </PageCenter>
     );
   }
 
