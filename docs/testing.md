@@ -5,7 +5,7 @@ Manual checklist for the full pipeline. Run `npm run dev` and ensure Ollama is u
 ## Prerequisites
 
 ```bash
-npm run ollama:modelfile
+npm run setup:ollama
 ollama list | grep anthroposcenic-describe
 
 ls comfyui/models/unet/*flux* 2>/dev/null || ls comfyui/models/checkpoints/*.safetensors 2>/dev/null
@@ -14,7 +14,7 @@ ls comfyui/models/unet/*flux* 2>/dev/null || ls comfyui/models/checkpoints/*.saf
 After modelfile edits:
 
 ```bash
-npm run ollama:modelfile
+npm run setup:ollama
 ```
 
 ## Pipeline
@@ -59,4 +59,4 @@ Expect SSE `token` events and a final `done`.
 | Describe hangs | Model loading; watch `ollama ps` |
 | Process 0% forever | ComfyUI not reachable on `:8188` |
 | Try again with file on disk | SSE recovery; see [troubleshooting.md](troubleshooting.md) |
-| Checkpoint error | Model file in `checkpoints/` or run `comfyui:flux` |
+| Checkpoint error | Model file in `checkpoints/` or run `npm run setup:comfyui` |

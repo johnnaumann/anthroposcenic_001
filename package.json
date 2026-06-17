@@ -10,17 +10,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "comfyui:setup": "bash scripts/setup-comfyui.sh",
+    "setup": "npm run setup:ollama && npm run setup:comfyui",
+    "setup:ollama": "bash scripts/create-ollama-modelfile.sh",
+    "setup:comfyui": "bash scripts/setup-comfyui.sh && bash scripts/download-flux.sh",
     "comfyui:run": "bash scripts/run-comfyui.sh",
-    "comfyui:samplers": "bash scripts/check-comfyui-samplers.sh",
-    "comfyui:install-all-samplers": "bash scripts/install-all-samplers.sh",
-    "comfyui:upscaler": "bash scripts/download-upscale-model.sh",
-    "comfyui:controlnet-tile": "bash scripts/download-controlnet-tile.sh",
-    "comfyui:flux": "bash scripts/download-flux.sh",
-    "comfyui:download-all": "bash scripts/download-all-models.sh",
-    "ollama:setup": "bash scripts/setup-ollama.sh",
-    "ollama:check": "bash scripts/check-ollama.sh",
-    "ollama:modelfile": "bash scripts/create-ollama-modelfile.sh"
+    "comfyui:sd": "bash scripts/download-all-models.sh && bash scripts/download-upscale-model.sh && bash scripts/download-controlnet-tile.sh"
   },
   "dependencies": {
     "@radix-ui/react-progress": "^1.1.0",

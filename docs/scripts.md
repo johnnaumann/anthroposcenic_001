@@ -1,37 +1,44 @@
 # Scripts
 
-## Development
+## Day to day
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Ollama + Next.js + open browser when ready |
-| `npm run dev:next` | Next.js only (`:3000`) |
-| `npm run dev:ollama` | Ollama startup script |
 | `npm run build` | Production build |
 | `npm run start` | Production server |
 | `npm run lint` | ESLint |
 
-## Ollama
+`dev` runs three helpers internally: `dev:next`, `dev:ollama`, `dev:open`. Use those only if you need a single service.
+
+## First-time setup
 
 | Command | Description |
 |---------|-------------|
-| `npm run ollama:setup` | Verify Ollama install and running |
-| `npm run ollama:check` | Health check |
-| `npm run ollama:modelfile` | Build `anthroposcenic-describe:latest` (required) |
+| `npm run setup` | Ollama describe model + ComfyUI install + Flux GGUF |
+| `npm run setup:ollama` | Rebuild `anthroposcenic-describe:latest` only |
+| `npm run setup:comfyui` | ComfyUI venv + Flux GGUF only |
 
-## ComfyUI
+Install Ollama itself first (`brew install ollama` or https://ollama.com/download).
+
+## Optional
 
 | Command | Description |
 |---------|-------------|
-| `npm run comfyui:setup` | Clone ComfyUI, venv, requirements |
-| `npm run comfyui:run` | Start ComfyUI manually (`:8188`) |
-| `npm run comfyui:flux` | Flux GGUF stack (default generation) |
-| `npm run comfyui:download-all` | SD checkpoint bulk download |
-| `npm run comfyui:upscaler` | ESRGAN upscale model (SD hi-res pass) |
-| `npm run comfyui:controlnet-tile` | ControlNet Tile weights (SD refine) |
-| `npm run comfyui:samplers` | Print available samplers (ComfyUI must be running) |
-| `npm run comfyui:install-all-samplers` | Optional custom-node sampler packs |
+| `npm run comfyui:sd` | SD checkpoints + upscale + ControlNet Tile |
+| `npm run comfyui:run` | Start ComfyUI manually (`:8188`; app auto-starts on process) |
 
-Shell scripts live in `scripts/`; npm scripts are the supported entry points.
+ComfyUI auto-starts from the app on first process (`lib/comfyui-startup.ts`). SD checkpoints can also download on demand via `lib/model-downloader.ts`.
 
-ComfyUI also auto-starts from the app on first process (`lib/comfyui-startup.ts`); `comfyui:run` is for manual debugging.
+## Shell scripts (advanced)
+
+Diagnostics and extras live in `scripts/` and are not wired to npm:
+
+| Script | Purpose |
+|--------|---------|
+| `check-ollama.sh` | Ollama health check |
+| `setup-ollama.sh` | Verify Ollama install |
+| `check-comfyui-samplers.sh` | List samplers (ComfyUI must be running) |
+| `install-all-samplers.sh` | Optional custom-node sampler packs |
+
+Run with `bash scripts/<name>.sh`.

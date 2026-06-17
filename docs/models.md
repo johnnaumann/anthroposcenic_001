@@ -4,39 +4,33 @@
 
 **Runtime default:** `anthroposcenic-describe:latest` (from `config/models.json`).
 
-**Build the describe model:**
-
 ```bash
-npm run ollama:modelfile
+npm run setup:ollama
 ```
 
-This reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7b`), and creates `anthroposcenic-describe:latest`.
-
-| Command | Purpose |
-|---------|---------|
-| `npm run ollama:modelfile` | Create/update describe model (required) |
-| `npm run ollama:check` | Verify Ollama is reachable |
-| `npm run ollama:setup` | Verify install and list models |
+Reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7b`), and creates `anthroposcenic-describe:latest`.
 
 Override at runtime: `OLLAMA_MODEL` in `.env.local` or `model` in the describe request body.
 
-The modelfile `SYSTEM` block is legacy tag-oriented text; the live describe route sends its own art-critic user prompt in `app/api/describe/route.ts`. Recreate the model after modelfile edits.
+The modelfile `SYSTEM` block is legacy tag-oriented text; the live describe route sends its own art-critic user prompt in `app/api/describe/route.ts`. Recreate the model after modelfile edits (`npm run setup:ollama`).
+
+Health check: `bash scripts/check-ollama.sh`
 
 ## ComfyUI
 
-### Setup
+### Setup (Flux default)
 
 ```bash
-npm run comfyui:setup
+npm run setup:comfyui
 ```
 
-### Flux (default when installed)
+Or full first-time setup:
 
 ```bash
-npm run comfyui:flux
+npm run setup
 ```
 
-Installs:
+Installs ComfyUI venv plus:
 
 - `custom_nodes/ComfyUI-GGUF`
 - `models/unet/flux1-dev-Q4_K_S.gguf` and `flux1-schnell-Q4_K_S.gguf`
@@ -44,23 +38,23 @@ Installs:
 
 UI labels: **Fast** (schnell) / **Slow** (dev).
 
-### Stable Diffusion checkpoints
+### Stable Diffusion (optional)
 
 ```bash
-npm run comfyui:download-all
-npm run comfyui:upscaler          # hi-res pass
-npm run comfyui:controlnet-tile   # ControlNet Tile
+npm run comfyui:sd
 ```
 
-Place `.safetensors` manually in `comfyui/models/checkpoints/`.
+Downloads SD checkpoints, upscale model (hi-res pass), and ControlNet Tile. You can also place `.safetensors` manually in `comfyui/models/checkpoints/`.
 
-SD checkpoints can auto-download via `lib/model-downloader.ts` when the process route requests a missing file. Flux GGUF is not auto-downloaded through that path — use `comfyui:flux`.
+SD checkpoints can auto-download via `lib/model-downloader.ts` when the process route requests a missing file. Flux GGUF is not auto-downloaded through that path — use `npm run setup:comfyui`.
 
 ### Samplers
 
+Core ComfyUI includes `dpmpp_2m` (the UI default). For extra samplers:
+
 ```bash
-npm run comfyui:samplers
-npm run comfyui:install-all-samplers   # optional
+bash scripts/install-all-samplers.sh
+bash scripts/check-comfyui-samplers.sh   # ComfyUI must be running
 ```
 
 Restart ComfyUI after installing custom nodes.

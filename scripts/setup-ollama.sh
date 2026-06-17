@@ -63,7 +63,7 @@ if [ -z "$MODELS" ]; then
     echo "⚠️  No models installed"
     echo ""
     echo "To install the describe model, run:"
-    echo "  npm run ollama:modelfile"
+    echo "  npm run setup:ollama"
     echo ""
     echo "Optional alternates (see config/models.json):"
     echo "  ollama pull qwen3-vl:8b"
@@ -81,7 +81,7 @@ else
     else
         echo ""
         echo "💡 Build the describe model with:"
-        echo "   npm run ollama:modelfile"
+        echo "   npm run setup:ollama"
     fi
 fi
 

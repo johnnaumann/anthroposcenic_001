@@ -17,7 +17,7 @@ echo ""
 # Check if ComfyUI is installed
 if [ ! -d "$COMFYUI_DIR" ]; then
     echo "❌ ComfyUI not found at: $COMFYUI_DIR"
-    echo "   Run: npm run comfyui:setup"
+    echo "   Run: npm run setup:comfyui"
     exit 1
 fi
 
@@ -136,7 +136,7 @@ fi
 echo ""
 echo "🔄 Next steps:"
 echo "   1. Restart ComfyUI to load new samplers"
-echo "   2. Check available samplers: npm run comfyui:samplers"
+echo "   2. Check available samplers: bash scripts/check-comfyui-samplers.sh"
 echo "   3. Or via API: curl http://localhost:8188/object_info | jq '.KSampler.input.required.sampler_name'"
 echo ""
 echo "💡 Note: After restarting ComfyUI, new samplers appear in the configure UI"

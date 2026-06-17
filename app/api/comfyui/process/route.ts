@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
       const comfyuiReady = await startComfyUI();
       if (!comfyuiReady) {
-        sendStreamError(controller, 'Failed to start ComfyUI. Please ensure ComfyUI is set up: npm run comfyui:setup');
+        sendStreamError(controller, 'Failed to start ComfyUI. Please ensure ComfyUI is set up: npm run setup:comfyui');
         return;
       }
 

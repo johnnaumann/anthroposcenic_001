@@ -28,7 +28,7 @@ export async function startComfyUI(): Promise<boolean> {
   
   // Check if ComfyUI is set up
   if (!existsSync(join(comfyuiDir, 'venv'))) {
-    console.error('[ComfyUI Startup] ComfyUI not set up. Run: npm run comfyui:setup');
+    console.error('[ComfyUI Startup] ComfyUI not set up. Run: npm run setup:comfyui');
     return false;
   }
 

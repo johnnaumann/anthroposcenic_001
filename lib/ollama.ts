@@ -105,7 +105,7 @@ export async function* streamOllamaResponse(
         const modelNames = modelsData.models?.map((m: { name: string }) => m.name) || [];
         if (!modelNames.includes(model)) {
           console.warn(`[Ollama] Model "${model}" not found in available models. Available: ${modelNames.slice(0, 5).join(', ')}...`);
-          console.warn(`[Ollama] You may need to create the model: npm run ollama:modelfile`);
+          console.warn(`[Ollama] You may need to create the model: npm run setup:ollama`);
         } else {
           console.log(`[Ollama] Model "${model}" found in available models`);
         }
@@ -211,7 +211,7 @@ export async function* streamOllamaResponse(
     
     if (tokenCount === 0) {
       console.error('[Ollama] Stream completed but no tokens were yielded.');
-      throw new Error('Ollama stream completed but returned no tokens. The model may not be responding correctly. Try recreating the model: npm run ollama:modelfile');
+      throw new Error('Ollama stream completed but returned no tokens. The model may not be responding correctly. Try recreating the model: npm run setup:ollama');
     }
 
     // Process remaining buffer

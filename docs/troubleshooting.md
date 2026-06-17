@@ -14,10 +14,10 @@ pkill -f "python.*main.py"
 ## Ollama
 
 ```bash
-npm run ollama:check
+bash scripts/check-ollama.sh
 ollama list
 ollama pull qwen3-vl:8b
-npm run ollama:modelfile
+npm run setup:ollama
 ```
 
 Describe stream ends with no text: confirm the model exists (`ollama list`) and Ollama is running on `OLLAMA_HOST`.
@@ -25,7 +25,7 @@ Describe stream ends with no text: confirm the model exists (`ollama list`) and 
 ## ComfyUI not starting
 
 ```bash
-npm run comfyui:setup
+npm run setup:comfyui
 npm run comfyui:run
 ```
 
@@ -46,7 +46,7 @@ curl -L -o sd-v1-5.safetensors \
   https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
 ```
 
-Or run `npm run comfyui:download-all` / `npm run comfyui:flux` for Flux.
+Or run `npm run comfyui:sd` / `npm run setup:comfyui` for Flux.
 
 Corrupted checkpoint: delete the file from `checkpoints/` and re-run; the process route can trigger a re-download.
 
@@ -69,8 +69,8 @@ Reduce steps, disable hi-res, or use Flux schnell (Fast) instead of dev (Slow).
 ## Samplers missing
 
 ```bash
-npm run comfyui:samplers
-npm run comfyui:install-all-samplers
+bash scripts/check-comfyui-samplers.sh
+bash scripts/install-all-samplers.sh
 ```
 
 Restart ComfyUI after installing custom nodes.

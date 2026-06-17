@@ -75,16 +75,13 @@ curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 ```bash
-npm run ollama:modelfile   # pulls llava:7b if needed, builds anthroposcenic-describe:latest
+npm run setup    # describe model + ComfyUI + Flux
 ```
 
-**ComfyUI**
+Optional Stable Diffusion stack:
 
 ```bash
-npm run comfyui:setup
-npm run comfyui:flux          # Flux GGUF — default when present
-# optional SD checkpoints:
-npm run comfyui:download-all
+npm run comfyui:sd
 ```
 
 **Run**
