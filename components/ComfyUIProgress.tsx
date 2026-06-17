@@ -16,6 +16,8 @@ interface ComfyUIProgressProps {
   config: ComfyUIConfig | null;
   onProcessingComplete: (imageUrl: string) => void;
   disabled?: boolean;
+  /** false = txt2img (generate from the prompt with no source image) */
+  useImage?: boolean;
 }
 
 function isProgressData(data: unknown): data is ProcessingProgressData {
@@ -57,7 +59,7 @@ function parseStatusProgress(statusText: string): number | null {
   return null;
 }
 
-export function ComfyUIProgress({ imageId, config, onProcessingComplete, disabled }: ComfyUIProgressProps) {
+export function ComfyUIProgress({ imageId, config, onProcessingComplete, disabled, useImage = true }: ComfyUIProgressProps) {
   const [status, setStatus] = useState('Starting…');
   const [progressDetail, setProgressDetail] = useState('');
   const [progress, setProgress] = useState(0);
@@ -65,10 +67,11 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  const processKey = useMemo(
-    () => (imageId ? `${imageId}:${retryKey}` : null),
-    [imageId, retryKey]
-  );
+  const processKey = useMemo(() => {
+    if (imageId) return `${imageId}:${retryKey}`;
+    if (!useImage) return `blend:${retryKey}`; // txt2img: no source image
+    return null;
+  }, [imageId, useImage, retryKey]);
 
   const retry = useCallback(() => {
     if (processKey) {
@@ -79,7 +82,7 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
   }, [processKey]);
 
   useEffect(() => {
-    if (!config || disabled || !imageId || !processKey) return;
+    if (!config || disabled || !processKey) return;
 
     setFailed(false);
     setIsProcessing(true);
@@ -92,7 +95,7 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
       {
         imageId,
         config,
-        useImage: true,
+        useImage,
         width: 1024,
         height: 1024,
       },
@@ -126,7 +129,7 @@ export function ComfyUIProgress({ imageId, config, onProcessingComplete, disable
     );
 
     return unsubscribe;
-  }, [config, disabled, imageId, onProcessingComplete, processKey]);
+  }, [config, disabled, imageId, useImage, onProcessingComplete, processKey]);
 
   if (failed) {
     return (

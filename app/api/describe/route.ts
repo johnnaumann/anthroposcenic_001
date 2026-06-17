@@ -51,26 +51,35 @@ export async function POST(request: NextRequest) {
   (async () => {
     try {
       const body: DescribeRequest = await request.json();
-      const { imageId, model } = body;
+      const { imageId, imageIds, model } = body;
 
-      if (!imageId) {
+      // One or many sources: `imageIds` (blend several pieces into one imagined
+      // work) takes precedence; `imageId` is the single-image path.
+      const sourceIds = (imageIds && imageIds.length > 0 ? imageIds : imageId ? [imageId] : [])
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+      if (sourceIds.length === 0) {
         if (controller) {
           sendStreamError(controller, 'Image ID is required');
         }
         return;
       }
 
-      // Find and read the image file
-      const imageFile = await findImageFile(imageId);
-      if (!imageFile) {
-        if (controller) {
-          sendStreamError(controller, 'Image not found');
+      // Read every source image to base64.
+      const imagesBase64: string[] = [];
+      for (const id of sourceIds) {
+        const imageFile = await findImageFile(id);
+        if (!imageFile) {
+          if (controller) {
+            sendStreamError(controller, 'Image not found');
+          }
+          return;
         }
-        return;
+        const imageBuffer = await readFile(imageFile.path);
+        imagesBase64.push(imageToBase64(imageBuffer, imageFile.mimeType));
       }
 
-      const imageBuffer = await readFile(imageFile.path);
-      const imageBase64 = imageToBase64(imageBuffer, imageFile.mimeType);
+      const isBlend = imagesBase64.length > 1;
 
       // Free ComfyUI's GPU/unified memory before loading the vision model. On Apple
       // Silicon (MPS) ComfyUI keeps its models resident after a generation, which can
@@ -109,22 +118,31 @@ export async function POST(request: NextRequest) {
         // Rich, nuanced read of the artwork. Flux's T5 encoder thrives on natural
         // language, and a vivid description of style/mood/technique gives the model
         // far more to "acknowledge and riff on" than a flat list of tags.
-        const prompt =
-          'You are an art critic and prompt engineer. Study this artwork closely and write a single, ' +
-          'vivid image-generation prompt that captures its essence so an AI can reinterpret and riff on it. ' +
-          'In flowing natural language, describe: the overall style and medium; the mood and atmosphere; ' +
-          'the composition, forms and sense of movement; the colour palette and materials; the texture, ' +
-          'mark-making and technique; and what makes it distinctive. Be specific and evocative — capture ' +
-          'nuance, not just a list of objects. Then finish with a short comma-separated list of key style ' +
-          'descriptors. Write 2-4 sentences followed by the tags. No preamble, no markdown, no headings, ' +
-          'no quotation marks.';
+        const prompt = isBlend
+          ? 'You are an art critic and prompt engineer. You are shown several artworks. Imagine a single ' +
+            'NEW artwork that fuses their styles, moods, colour palettes, forms and techniques into one ' +
+            'cohesive, original piece — a synthesis, not a description of any one of them. In flowing natural ' +
+            'language, write one vivid image-generation prompt for this imagined fusion: its overall style ' +
+            'and medium; the mood and atmosphere; the composition, forms and movement; the colour palette ' +
+            'and materials; the texture and mark-making. Be specific and evocative, and lean into the ' +
+            'unexpected combinations between the works. Then finish with a short comma-separated list of key ' +
+            'style descriptors. Write 2-4 sentences followed by the tags. No preamble, no markdown, no ' +
+            'headings, no quotation marks.'
+          : 'You are an art critic and prompt engineer. Study this artwork closely and write a single, ' +
+            'vivid image-generation prompt that captures its essence so an AI can reinterpret and riff on it. ' +
+            'In flowing natural language, describe: the overall style and medium; the mood and atmosphere; ' +
+            'the composition, forms and sense of movement; the colour palette and materials; the texture, ' +
+            'mark-making and technique; and what makes it distinctive. Be specific and evocative — capture ' +
+            'nuance, not just a list of objects. Then finish with a short comma-separated list of key style ' +
+            'descriptors. Write 2-4 sentences followed by the tags. No preamble, no markdown, no headings, ' +
+            'no quotation marks.';
         
         console.log('[Describe] Sending request to Ollama');
         
         for await (const token of streamOllamaResponse({
           model: modelToUse,
           prompt: prompt,
-          images: [imageBase64],
+          images: imagesBase64,
           stream: true,
           capPromptLength: true,
           keepAlive: 0, // unload the vision model right after, freeing memory for Flux

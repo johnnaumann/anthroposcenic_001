@@ -160,7 +160,7 @@ async function tryRecoverImage(
 async function startRun(
   key: string,
   body: {
-    imageId: string;
+    imageId: string | null;
     config: ComfyUIConfig;
     useImage: boolean;
     width: number;
@@ -239,7 +239,7 @@ async function startRun(
 export function subscribeComfyUIProcess(
   key: string,
   body: {
-    imageId: string;
+    imageId: string | null;
     config: ComfyUIConfig;
     useImage: boolean;
     width: number;

@@ -10,32 +10,38 @@ import { toast } from 'sonner';
 
 interface DescriptionStreamProps {
   imageId: string | null;
+  imageIds?: string[] | null; // blend mode: describe several sources into one prompt
   onDescriptionComplete: (description: string) => void;
   disabled?: boolean;
 }
 
-export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: DescriptionStreamProps) {
+export function DescriptionStream({ imageId, imageIds, onDescriptionComplete, disabled }: DescriptionStreamProps) {
   const [description, setDescription] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // One source (single image) or many (blend several archive pieces into one prompt).
+  const sources = imageIds && imageIds.length > 0 ? imageIds : imageId ? [imageId] : [];
+  const sourcesKey = sources.join(',');
+  const isBlend = sources.length > 1;
+
   useEffect(() => {
-    if (imageId && !disabled) {
+    if (sources.length > 0 && !disabled) {
       startDescription();
     } else {
       setDescription('');
     }
 
     return () => {
-      if (abortControllerRef.current && !imageId) {
+      if (abortControllerRef.current && sources.length === 0) {
         abortControllerRef.current.abort();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageId, disabled]);
+  }, [sourcesKey, disabled]);
 
   const startDescription = async () => {
-    if (!imageId) return;
+    if (sources.length === 0) return;
 
     setIsStreaming(true);
     setDescription('');
@@ -46,7 +52,7 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       const response = await fetch('/api/describe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageId }),
+        body: JSON.stringify(isBlend ? { imageIds: sources } : { imageId: sources[0] }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -135,10 +141,13 @@ export function DescriptionStream({ imageId, onDescriptionComplete, disabled }: 
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         <div className="space-y-1">
-          <p className="text-sm font-medium">Reading the artwork…</p>
+          <p className="text-sm font-medium">
+            {isBlend ? `Blending ${sources.length} artworks…` : 'Reading the artwork…'}
+          </p>
           <p className="mx-auto max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Studying style, mood, composition and technique to write a prompt worth riffing on.
-            This can take ~30–60s with the high-detail model.
+            {isBlend
+              ? 'Fusing their styles, moods, palettes and forms into one imagined prompt. This can take ~30–60s with the high-detail model.'
+              : 'Studying style, mood, composition and technique to write a prompt worth riffing on. This can take ~30–60s with the high-detail model.'}
           </p>
         </div>
       </div>

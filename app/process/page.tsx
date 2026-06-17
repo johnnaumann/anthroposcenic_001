@@ -17,6 +17,7 @@ function ProcessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
+  const isBlend = searchParams.get('mode') === 'blend';
   const configParam = searchParams.get('config');
   const [config, setConfig] = useState<ComfyUIConfig | null>(null);
   const [ready, setReady] = useState(false);
@@ -56,7 +57,7 @@ function ProcessContent() {
     );
   }
 
-  if (!imageId) {
+  if (!isBlend && !imageId) {
     return (
       <PageShell error="Missing image. Please start from the upload step.">
         <ContentCard>
@@ -74,7 +75,7 @@ function ProcessContent() {
         <ContentCard>
           <Button
             variant="outline"
-            onClick={() => router.push(`/configure?imageId=${imageId}`)}
+            onClick={() => router.push(isBlend ? '/configure?mode=blend' : `/configure?imageId=${imageId}`)}
           >
             Go to configure
           </Button>
@@ -87,7 +88,8 @@ function ProcessContent() {
     <PageShell>
       <ContentCard>
         <ComfyUIProgress
-          imageId={imageId}
+          imageId={isBlend ? null : imageId}
+          useImage={!isBlend}
           config={config}
           onProcessingComplete={handleProcessingComplete}
           disabled={false}

@@ -20,7 +20,8 @@ export interface OutputImageListResponse {
 }
 
 export interface DescribeRequest {
-  imageId: string;
+  imageId?: string;
+  imageIds?: string[]; // blend several sources into one fused prompt
   model?: string;
 }
 

@@ -13,6 +13,7 @@ function ConfigureContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
+  const isBlend = searchParams.get('mode') === 'blend';
   const descriptionParam = searchParams.get('description');
   const [description, setDescription] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -26,7 +27,7 @@ function ConfigureContent() {
 
   const handleConfigSelected = (config: ComfyUIConfig) => {
     savePipelineConfig(config);
-    router.push(`/process?imageId=${imageId}`);
+    router.push(isBlend ? '/process?mode=blend' : `/process?imageId=${imageId}`);
   };
 
   if (!ready) {
@@ -40,7 +41,7 @@ function ConfigureContent() {
     );
   }
 
-  if (!imageId || !description) {
+  if ((!isBlend && !imageId) || !description) {
     return (
       <PageShell error="Missing image or description. Please start from the upload step.">
         <ContentCard>

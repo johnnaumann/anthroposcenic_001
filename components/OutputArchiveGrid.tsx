@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, Loader2, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Check, Download, Layers, Loader2, Sparkles, Trash2, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContentCard } from '@/components/PageShell';
 import { OutputImageEntry, OutputImageListResponse } from '@/types';
@@ -30,6 +30,9 @@ function formatFileSize(bytes: number): string {
 interface OutputArchiveGridProps {
   onBack?: () => void;
 }
+
+// How many archive images can be fused into one prompt at once.
+const MAX_BLEND = 5;
 
 /** Thumbnail that fades in once it has loaded — including images already in cache. */
 function ArchiveImage({ src, alt }: { src: string; alt: string }) {
@@ -68,6 +71,9 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
   const [images, setImages] = useState<OutputImageEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyFilename, setBusyFilename] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [blending, setBlending] = useState(false);
 
   const loadImages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -164,6 +170,52 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     }
   };
 
+  const toggleSelectMode = () => {
+    setSelectMode((on) => !on);
+    setSelected([]);
+  };
+
+  const toggleSelect = (filename: string) => {
+    setSelected((current) => {
+      if (current.includes(filename)) {
+        return current.filter((f) => f !== filename);
+      }
+      if (current.length >= MAX_BLEND) {
+        toast.error(`You can blend up to ${MAX_BLEND} images at once.`);
+        return current;
+      }
+      return [...current, filename];
+    });
+  };
+
+  const handleBlend = async () => {
+    if (selected.length < 2) return;
+    setBlending(true);
+    try {
+      // Adopt every selected archive image into the upload store; the describe
+      // step then fuses them into one prompt and generates a fresh image.
+      const ids = await Promise.all(
+        selected.map(async (filename) => {
+          const res = await fetch('/api/outputs/use', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename }),
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            throw new Error(e.error || `Failed to prepare ${filename}`);
+          }
+          const { imageId } = await res.json();
+          return imageId as string;
+        })
+      );
+      router.push(`/describe?imageIds=${ids.join(',')}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to prepare the blend');
+      setBlending(false);
+    }
+  };
+
   const downloadUrl = (image: OutputImageEntry) =>
     `${image.imageUrl}${image.imageUrl.includes('?') ? '&' : '?'}download=1`;
 
@@ -183,16 +235,50 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
           <div className="space-y-1">
             <h1 className="text-base font-medium">Archive</h1>
             <p className="text-sm text-muted-foreground">
-              Previously rendered images. Select one to reinterpret, or download and manage the archive.
+              {selectMode
+                ? 'Pick 2 or more images to blend into one abstract piece.'
+                : 'Previously rendered images. Reinterpret one, blend several, or manage the archive.'}
             </p>
           </div>
-          {onBack && (
-            <Button variant="outline" size="sm" onClick={onBack}>
-              <ArrowLeft />
-              Back
-            </Button>
-          )}
+          <div className="flex shrink-0 gap-2">
+            {images.length > 0 && (
+              <Button variant="outline" size="sm" onClick={toggleSelectMode} disabled={blending}>
+                {selectMode ? <X /> : <Layers />}
+                {selectMode ? 'Cancel' : 'Blend'}
+              </Button>
+            )}
+            {onBack && !selectMode && (
+              <Button variant="outline" size="sm" onClick={onBack}>
+                <ArrowLeft />
+                Back
+              </Button>
+            )}
+          </div>
         </div>
+
+        {selectMode && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-accent/30 px-3 py-2">
+            <span className="text-sm text-muted-foreground">
+              {selected.length === 0
+                ? 'No images selected'
+                : `${selected.length} selected${selected.length < 2 ? ' · pick at least 2' : ''}`}
+            </span>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected([])}
+                disabled={selected.length === 0 || blending}
+              >
+                Clear
+              </Button>
+              <Button size="sm" onClick={handleBlend} disabled={selected.length < 2 || blending}>
+                {blending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                Blend{selected.length ? ` ${selected.length}` : ''}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {images.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
@@ -205,15 +291,32 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
           <div className="columns-2 gap-3 sm:columns-3">
             {images.map((image) => {
               const isBusy = busyFilename === image.filename;
+              const isSelected = selected.includes(image.filename);
 
               return (
                 <article
                   key={image.filename}
+                  onClick={selectMode ? () => toggleSelect(image.filename) : undefined}
                   className={cn(
-                    'mb-3 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card transition-colors',
-                    isBusy && 'opacity-60'
+                    'relative mb-3 break-inside-avoid overflow-hidden rounded-xl border bg-card transition',
+                    isBusy && 'opacity-60',
+                    selectMode && 'cursor-pointer',
+                    isSelected ? 'border-foreground ring-2 ring-foreground' : 'border-border'
                   )}
                 >
+                  {selectMode && (
+                    <span
+                      className={cn(
+                        'absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
+                        isSelected
+                          ? 'border-foreground bg-foreground text-background'
+                          : 'border-white/70 bg-black/40 text-transparent'
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+
                   <div className="bg-muted/30">
                     <ArchiveImage key={image.imageUrl} src={image.imageUrl} alt={image.filename} />
                   </div>
@@ -226,39 +329,41 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        size="icon-sm"
-                        aria-label="Use image"
-                        title="Use"
-                        disabled={isBusy}
-                        onClick={() => handleUse(image)}
-                      >
-                        {isBusy ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="outline"
-                        aria-label="Download image"
-                        title="Download"
-                        disabled={isBusy}
-                        asChild
-                      >
-                        <a href={downloadUrl(image)} download={image.filename}>
-                          <Download />
-                        </a>
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="outline"
-                        aria-label="Delete from archive"
-                        title="Delete"
-                        disabled={isBusy}
-                        onClick={() => handleDelete(image)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
+                    {!selectMode && (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon-sm"
+                          aria-label="Use image"
+                          title="Use"
+                          disabled={isBusy}
+                          onClick={() => handleUse(image)}
+                        >
+                          {isBusy ? <Loader2 className="animate-spin" /> : <Wand2 />}
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
+                          aria-label="Download image"
+                          title="Download"
+                          disabled={isBusy}
+                          asChild
+                        >
+                          <a href={downloadUrl(image)} download={image.filename}>
+                            <Download />
+                          </a>
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
+                          aria-label="Delete from archive"
+                          title="Delete"
+                          disabled={isBusy}
+                          onClick={() => handleDelete(image)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </article>
               );
