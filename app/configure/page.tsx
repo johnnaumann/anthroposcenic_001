@@ -3,9 +3,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ConfigSelector } from '@/components/ConfigSelector';
-import { ContentCard, PageShell, RouteFallback } from '@/components/PageShell';
+import { ContentCard, PageShell, PageLoader, RouteFallback } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
 import { ComfyUIConfig } from '@/types';
 import { loadPipelineDescription, savePipelineConfig } from '@/lib/pipeline-storage';
 
@@ -14,16 +13,13 @@ function ConfigureContent() {
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
   const isBlend = searchParams.get('mode') === 'blend';
-  const descriptionParam = searchParams.get('description');
   const [description, setDescription] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const fromUrl = descriptionParam ? decodeURIComponent(descriptionParam) : null;
-    const fromStorage = loadPipelineDescription();
-    setDescription(fromUrl ?? fromStorage);
+    setDescription(loadPipelineDescription());
     setReady(true);
-  }, [descriptionParam]);
+  }, []);
 
   const handleConfigSelected = (config: ComfyUIConfig) => {
     savePipelineConfig(config);
@@ -33,10 +29,7 @@ function ConfigureContent() {
   if (!ready) {
     return (
       <PageShell>
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading prompt…
-        </div>
+        <PageLoader label="Loading prompt…" />
       </PageShell>
     );
   }

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { readFile, copyFile, mkdir, writeFile, unlink } from 'fs/promises';
+import { readFile, copyFile, mkdir, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability, isFluxModel } from '@/lib/comfyui';
@@ -10,7 +10,6 @@ import { ComfyUIProcessRequest } from '@/types';
 import { createProgressAggregator, getSamplingPhases } from '@/lib/processing-progress';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
-const EXPORTS_DIR = process.env.EXPORTS_DIR || './data/exports';
 
 async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
   const uploadPath = join(process.cwd(), UPLOAD_DIR);
@@ -202,7 +201,6 @@ export async function POST(request: NextRequest) {
       console.log(`[ComfyUI Process] Mode: ${useImage ? 'img2img' : 'txt2img'}`);
 
       let comfyImageFilename: string | null = null;
-      let imageBase64: string | null = null;
 
       // Only prepare image if using img2img mode
       if (useImage && imageId) {
@@ -225,7 +223,6 @@ export async function POST(request: NextRequest) {
           await mkdir(comfyInputDir, { recursive: true });
           
           const imageBuffer = await readFile(imageFile.path);
-          imageBase64 = imageBuffer.toString('base64');
           const extension = imageFile.path.split('.').pop() || 'png';
           const filename = `${imageId}.${extension}`;
           const comfyImagePath = join(comfyInputDir, filename);
@@ -235,8 +232,6 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.warn('Failed to copy image to ComfyUI input, using filename:', error);
           // Fallback: use just the filename (assumes image is accessible)
-          const imageBuffer = await readFile(imageFile.path);
-          imageBase64 = imageBuffer.toString('base64');
           comfyImageFilename = imageFile.path.split('/').pop() || `${imageId}.png`;
         }
       } else {
@@ -244,66 +239,6 @@ export async function POST(request: NextRequest) {
           type: 'status',
           data: 'Using text-to-image mode (no input image)...',
         });
-      }
-
-      // Save description and base64 image to exports folder for git tracking
-      try {
-        const exportsPath = join(process.cwd(), EXPORTS_DIR);
-        await mkdir(exportsPath, { recursive: true });
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const exportDir = join(exportsPath, `${imageId || 'txt2img'}-${timestamp}`);
-        await mkdir(exportDir, { recursive: true });
-        
-        // Save description
-        await writeFile(
-          join(exportDir, 'description.txt'),
-          config.description,
-          'utf-8'
-        );
-        
-        // Save config JSON
-        await writeFile(
-          join(exportDir, 'config.json'),
-          JSON.stringify(config, null, 2),
-          'utf-8'
-        );
-        
-        // Save base64 image (if available)
-        if (imageBase64) {
-          await writeFile(
-            join(exportDir, 'image.base64.txt'),
-            imageBase64,
-            'utf-8'
-          );
-        }
-        
-        // Save metadata JSON
-        let imageMimeType: string | null = null;
-        if (useImage && imageId) {
-          const imageFileForMetadata = await findImageFile(imageId);
-          if (imageFileForMetadata) {
-            imageMimeType = imageFileForMetadata.mimeType;
-          }
-        }
-        
-        await writeFile(
-          join(exportDir, 'metadata.json'),
-          JSON.stringify({
-            imageId: imageId || null,
-            timestamp: new Date().toISOString(),
-            config,
-            imageMimeType: imageMimeType,
-            comfyImageFilename: comfyImageFilename || null,
-            useImage,
-          }, null, 2),
-          'utf-8'
-        );
-        
-        console.log(`Saved export to: ${exportDir}`);
-      } catch (error) {
-        console.warn('Failed to save export files:', error);
-        // Don't fail the request if export saving fails
       }
 
       // Create workflow using config from JSON

@@ -58,20 +58,7 @@
         "size": "~4GB",
         "recommended": false,
         "features": ["vision"]
-      },
-      "anthroposcenic-transform:latest": {
-        "name": "anthroposcenic-transform:latest",
-        "displayName": "Anthroposcenic Transform",
-        "description": "Custom model with optimized system prompt for scientific description transformation",
-        "size": "~4GB",
-        "recommended": false,
-        "features": ["vision", "custom-prompt", "transformation"],
-        "baseModel": "llava:7b"
       }
     }
-  },
-  "comfyui": {
-    "defaultCheckpoint": "",
-    "checkpoints": []
   }
 }

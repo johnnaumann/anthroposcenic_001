@@ -35,12 +35,6 @@ All routes are under the Next.js app (`localhost:3000`). Streaming routes use Se
 | `/api/outputs/image/[filename]` | GET | Serve archive thumbnail; query `v` for cache bust, `download=1` for attachment |
 | `/api/outputs/use` | POST | Body: `{ filename }`. Copy output into `uploads/`; returns new `imageId` |
 
-## Other
-
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/transform` | POST | Optional scientific-analogy transform of a description (SSE) |
-
 ## SSE message shapes (process / describe)
 
 Common fields:

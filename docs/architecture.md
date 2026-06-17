@@ -35,7 +35,7 @@ sequenceDiagram
 | Complete | `/complete` | Completion message + download / archive / reinterpret |
 | Archive | `/archive` | Masonry grid of `comfyui/output/anthroposcenic_*`; use, download, delete |
 
-There is **no** separate transform step in the main UI. `/api/transform` and `CreativeTransform.tsx` exist but are not wired into the flow.
+There is **no** separate transform step. Configuration is manual in the configure UI.
 
 ## Describe behaviour
 
@@ -67,7 +67,6 @@ There is **no** separate transform step in the main UI. `/api/transform` and `Cr
 | `comfyui/output/` | Rendered `anthroposcenic_*.png` |
 | `comfyui/input/` | Copies for ComfyUI `LoadImage` |
 | `comfyui/models/` | `unet/` (Flux GGUF), `checkpoints/`, `vae/`, `clip/`, upscale, ControlNet |
-| `data/exports/` | Per-run description, config, metadata (best-effort) |
 
 ## ComfyUI workflow
 

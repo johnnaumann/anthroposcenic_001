@@ -96,9 +96,7 @@ export async function POST(request: NextRequest) {
         /* ComfyUI not running or unreachable — nothing to free */
       }
 
-      // System prompt is in the modelfile - use minimal trigger (not an instruction)
-      // The modelfile system prompt contains all instructions for JSON generation
-      // Use the custom model if no model specified, fallback to default from config
+      // User prompt for rich natural-language descriptions (see prompt text below).
       let modelToUse = model;
       if (!modelToUse || modelToUse === 'default') {
         modelToUse = process.env.OLLAMA_MODEL || 'anthroposcenic-describe:latest';

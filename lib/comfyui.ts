@@ -1,4 +1,5 @@
-import { ComfyUIJob, ComfyUIStatus } from '@/types';
+import { ComfyUIStatus } from '@/types';
+import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -709,106 +710,35 @@ export async function createComfyUIWorkflow(
     maxWidth?: number; // Maximum image width (optional, images are now compressed at upload)
     maxHeight?: number; // Maximum image height (optional, images are now compressed at upload)
     useImageResize?: boolean; // Whether to use ImageScale node (default: false, images are pre-compressed)
-    negativePrompt?: string; // Custom negative prompt (default: creative variation-focused)
-    creativity?: 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid'; // Creativity preset (quality/vivid modes preserve detail)
-    useImage?: boolean; // Whether to use img2img (true) or txt2img (false)
-    width?: number; // Image width for txt2img (default: 1024)
-    height?: number; // Image height for txt2img (default: 1024)
-    qualityBoost?: boolean; // Append detail/quality booster tags to the positive prompt (default: true)
-    hiresFix?: boolean; // Run an upscale + refine pass for added detail (default: true)
-    hiresFactor?: number; // Final upscale multiplier vs the base image (default: 1.5)
-    hiresDenoise?: number; // Denoise strength for the hires refine pass (default: auto)
-    upscaleModel?: string; // ESRGAN upscale model filename (default: auto-detected from upscale_models)
-    freeU?: boolean; // Apply FreeU_V2 for extra SD1.5 detail/contrast (default: true)
-    controlNet?: boolean; // Use ControlNet Tile in the refine pass when a model is present (default: true)
-    controlNetModel?: string; // ControlNet model filename (default: auto-detected tile model)
-    controlNetStrength?: number; // ControlNet guidance strength for the refine pass (default: 0.65)
+    negativePrompt?: string;
+    useImage?: boolean;
+    width?: number;
+    height?: number;
+    qualityBoost?: boolean;
+    hiresFix?: boolean;
+    hiresFactor?: number;
+    hiresDenoise?: number;
+    upscaleModel?: string;
+    freeU?: boolean;
+    controlNet?: boolean;
+    controlNetModel?: string;
+    controlNetStrength?: number;
   } = {}
 ): Promise<ComfyUIWorkflow> {
-  // Get creativity preset or use individual parameters
-  // Default to 'vivid' for vivid, high-quality images, or use environment variable
-  const creativity = options.creativity || (process.env.COMFYUI_CREATIVITY as 'low' | 'medium' | 'high' | 'extreme' | 'quality' | 'quality-high' | 'vivid') || 'vivid';
-  
-  // Define creativity presets
-  // Balance between creativity (variation) and memory usage
-  // Note: Sampler names will be validated against available ComfyUI samplers
-  const creativityPresets = {
-    low: {
-      denoiseStrength: 0.65,
-      cfgScale: 8.0,
-      steps: 15, // Memory-optimized
-      sampler: 'euler', // Common sampler, usually available
-      scheduler: 'normal',
-      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality',
-    },
-    medium: {
-      denoiseStrength: 0.75,
-      cfgScale: 7.0,
-      steps: 18, // Slightly more steps for better quality
-      sampler: 'euler_ancestral', // More variation than euler
-      scheduler: 'normal',
-      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate',
-    },
-    high: {
-      denoiseStrength: 0.85,
-      cfgScale: 6.0,
-      steps: 22, // Good balance of quality and memory
-      sampler: 'dpmpp_2m', // More creative sampler (will try dpmpp_2m_karras first, fallback to this)
-      scheduler: 'normal', // Use normal scheduler (karras scheduler may not be available)
-      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate, replication, same as original, unchanged, unmodified',
-    },
-    extreme: {
-      denoiseStrength: 0.95,
-      cfgScale: 5.0,
-      steps: 28, // Higher quality, more memory usage
-      sampler: 'dpmpp_2m', // Will try variations, fallback to this
-      scheduler: 'normal',
-      negativePrompt: 'blurry, bad quality, distorted, watermark, exact copy, identical, duplicate, replication, same as original, unchanged, unmodified, faithful reproduction, precise copy',
-    },
-    // Quality-focused presets that preserve detail from original image
-    quality: {
-      denoiseStrength: 0.35, // Lower denoise preserves more original detail
-      cfgScale: 8.0, // Higher CFG for better prompt adherence
-      steps: 35, // More steps for better refinement
-      sampler: 'dpmpp_2m', // High-quality sampler
-      scheduler: 'normal',
-      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined',
-    },
-    'quality-high': {
-      denoiseStrength: 0.30, // Even lower denoise for maximum detail preservation
-      cfgScale: 8.5, // Higher CFG for strong prompt adherence
-      steps: 45, // Many steps for maximum refinement
-      sampler: 'dpmpp_2m', // High-quality sampler
-      scheduler: 'normal',
-      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined, pixelated, artifacts',
-    },
-    // Vivid preset: Optimized for vivid, visually arresting images with good detail preservation
-    // Balanced for quality and memory efficiency
-    vivid: {
-      denoiseStrength: 0.45, // Moderate denoise - preserves detail while allowing enhancement
-      cfgScale: 7.5, // Optimal CFG for photorealistic quality without artifacts (7-7.5 range)
-      steps: 32, // Good balance of quality and speed (30-35 range)
-      sampler: 'dpmpp_2m', // Will try dpmpp_2m_karras first for better quality
-      scheduler: 'normal', // Use normal scheduler (karras may not be available)
-      negativePrompt: 'blurry, bad quality, distorted, watermark, low quality, oversimplified, loss of detail, unrefined, pixelated, artifacts, dull, faded, washed out, desaturated, low contrast, flat lighting',
-    },
-  };
-
-  const preset = creativityPresets[creativity];
-  
   const {
     checkpoint: providedCheckpoint = '',
     seed = Math.floor(Math.random() * 1000000),
-    steps = preset.steps,
-    cfgScale = preset.cfgScale,
-    denoiseStrength = preset.denoiseStrength,
-    sampler: requestedSampler = preset.sampler,
-    scheduler = preset.scheduler,
-    maxWidth = 1024, // Default max (images are pre-compressed at upload to 1024px max)
+    maxWidth = 1024,
     maxHeight = 1024,
-    useImageResize = false, // Images are now compressed at upload, so resize node is optional
-    negativePrompt = preset.negativePrompt,
+    useImageResize = false,
   } = options;
+
+  const steps = options.steps ?? 28;
+  const cfgScale = options.cfgScale ?? 7;
+  const denoiseStrength = options.denoiseStrength ?? 0.85;
+  const requestedSampler = options.sampler ?? 'dpmpp_2m';
+  const scheduler = options.scheduler ?? 'karras';
+  const negativePrompt = options.negativePrompt ?? DEFAULT_NEGATIVE_PROMPT;
 
   // ── Flux short-circuit ───────────────────────────────────────────────────────
   // Flux is a different architecture (T5 prose, guidance not CFG, GGUF UNet). When a
@@ -842,16 +772,7 @@ export async function createComfyUIWorkflow(
     console.log(`Using checkpoint: ${checkpoint}`);
   }
 
-  // Validate and get a valid sampler (with fallback)
-  // For quality/vivid/high/extreme presets, try dpmpp_2m_karras first for best quality
-  let sampler = requestedSampler;
-  if ((creativity === 'quality' || creativity === 'quality-high' || creativity === 'vivid' || creativity === 'high' || creativity === 'extreme') && requestedSampler === preset.sampler) {
-    // Try dpmpp_2m_karras first for quality, vivid, and high creativity presets
-    sampler = await getValidSampler('dpmpp_2m_karras');
-  } else {
-    // Validate the requested sampler (or preset default)
-    sampler = await getValidSampler(requestedSampler);
-  }
+  const sampler = await getValidSampler(requestedSampler);
 
   // Determine if using image (img2img) or text-to-image (txt2img)
   const useImage = options.useImage !== false && imageFilename !== null;

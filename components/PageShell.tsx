@@ -16,6 +16,16 @@ export function RouteFallback() {
   );
 }
 
+/** Centered loading state for use inside PageShell (no card). */
+export function PageLoader({ label }: { label: string }) {
+  return (
+    <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      {label}
+    </div>
+  );
+}
+
 /**
  * The standard off-black content card. Compose it inside a PageShell around
  * content that should be framed; leave it off for loading or transient states.
@@ -57,7 +67,12 @@ export function PageShell({ error, wide, children }: PageShellProps) {
       </div>
 
       <main className="flex flex-1 flex-col px-5 py-10">
-        <div className={cn('m-auto w-full', wide ? 'max-w-5xl' : 'max-w-xl')}>
+        <div
+          className={cn(
+            'm-auto flex w-full flex-1 flex-col',
+            wide ? 'max-w-5xl' : 'max-w-xl'
+          )}
+        >
           {children}
         </div>
       </main>

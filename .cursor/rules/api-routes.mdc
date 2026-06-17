@@ -1,0 +1,32 @@
+---
+description: Next.js API route handlers and streaming
+globs: app/api/**/*
+alwaysApply: false
+---
+
+# API routes
+
+Route handlers live in `app/api/**/route.ts`. Validate inputs; return meaningful HTTP status codes.
+
+## Streaming
+
+- Use `ReadableStream` for SSE (`text/event-stream`) or NDJSON where appropriate.
+- Reuse helpers in `lib/streaming.ts` when present.
+- Close streams on error; log server-side; do not expose secrets.
+- ComfyUI process: shared subscription in `lib/comfyui-process-stream.ts` — unsubscribing must not abort the job.
+
+## Describe (`/api/describe`)
+
+- Ollama vision stream; art-critic prose + tags (not JSON config).
+- Cap length via `lib/prompt-limits.ts`.
+- Best-effort ComfyUI `/free` before Ollama to release GPU on Apple Silicon.
+
+## Process (`/api/comfyui/process`)
+
+- Auto-start ComfyUI via `lib/comfyui-startup.ts` if needed.
+- Progress: WebSocket (`lib/comfyui-ws.ts`) + poll fallback; phased UI via `lib/processing-progress.ts`.
+- Emit `meta` with `promptId` + `jobStartTime` for client recovery via `/api/comfyui/process/result`.
+
+## Outputs
+
+- Serve archive images from `/api/outputs/image/[filename]` with cache-busting (`?v=mtime`), not raw filesystem paths.

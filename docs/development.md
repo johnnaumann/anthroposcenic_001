@@ -7,7 +7,7 @@ app/
   page.tsx                 # redirects to /upload
   upload/ describe/ configure/ process/ complete/ archive/
   api/
-    upload/ describe/ transform/          # transform unused in main UI
+    upload/ describe/
     images/[imageId]/
     comfyui/ process/ process/result/ config/ output/ samplers/
     outputs/ outputs/image/[filename]/ outputs/use/

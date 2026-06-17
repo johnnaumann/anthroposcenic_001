@@ -38,19 +38,18 @@ next-env.d.ts
 # uploads and temp
 /uploads
 /temp
+/data/exports
 *.tmp
 
 # ComfyUI
 /comfyui
 /comfyui_*
 
-# data exports
-/data
-
 # logs
 /logs
 *.log
 
-# Cursor IDE
-.cursorrules
-.cursor/
+# Cursor IDE (commit project rules under .cursor/rules/)
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**

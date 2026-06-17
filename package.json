@@ -24,11 +24,9 @@
     "ollama:setup": "bash scripts/setup-ollama.sh",
     "ollama:check": "bash scripts/check-ollama.sh",
     "ollama:models": "bash scripts/install-ollama-models.sh",
-    "ollama:modelfile": "bash scripts/create-ollama-modelfile.sh",
-    "ollama:modelfile:transform": "bash scripts/create-ollama-transform-modelfile.sh"
+    "ollama:modelfile": "bash scripts/create-ollama-modelfile.sh"
   },
   "dependencies": {
-    "@radix-ui/react-alert-dialog": "^1.1.0",
     "@radix-ui/react-progress": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-switch": "^1.3.0",

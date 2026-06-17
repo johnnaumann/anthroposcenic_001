@@ -12,7 +12,7 @@ Local image pipeline: upload an image, generate a prompt with Ollama, configure 
 | Image generation | ComfyUI — Flux GGUF (default) or SD checkpoints | 8188 |
 | Progress | ComfyUI WebSocket + HTTP poll; SSE to browser | — |
 | Images | Sharp (upload resize), `next/image` | — |
-| Storage | `./uploads`, `comfyui/output`, `data/exports` | — |
+| Storage | `./uploads`, `comfyui/output` | — |
 
 ```mermaid
 flowchart TB

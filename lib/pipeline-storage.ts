@@ -41,11 +41,3 @@ export function clearPipelineState(): void {
   sessionStorage.removeItem(DESCRIPTION_KEY);
   sessionStorage.removeItem(CONFIG_KEY);
 }
-
-export function parsePipelineConfigParam(configParam: string): ComfyUIConfig | null {
-  try {
-    return JSON.parse(decodeURIComponent(configParam)) as ComfyUIConfig;
-  } catch {
-    return null;
-  }
-}

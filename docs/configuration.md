@@ -17,7 +17,6 @@ COMFYUI_WS_URL=ws://localhost:8188/ws
 # Upload / storage
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
-EXPORTS_DIR=./data/exports
 
 # Upload compression (Sharp)
 MAX_IMAGE_WIDTH=1024
@@ -39,23 +38,9 @@ Default Ollama model comes from `config/models.json` (`anthroposcenic-describe:l
 
 Set `COMFYUI_MEMORY_MODE` in `.env.local`.
 
-### Legacy env overrides (fallback only)
-
-Configure step UI is primary. These apply only if code paths still read them:
-
-```env
-# COMFYUI_CREATIVITY=vivid
-# COMFYUI_STEPS=35
-# COMFYUI_CFG_SCALE=7.5
-# COMFYUI_DENOISE=0.45
-# COMFYUI_SAMPLER=dpmpp_2m
-# COMFYUI_SCHEDULER=karras
-# COMFYUI_CHECKPOINT=Deliberate_v2.safetensors
-```
-
 ## `config/models.json`
 
-Ollama registry and ComfyUI default checkpoint metadata. App default:
+Ollama registry. App default:
 
 ```json
 {

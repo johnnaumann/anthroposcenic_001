@@ -19,7 +19,6 @@
 | `npm run ollama:check` | Health check |
 | `npm run ollama:models` | Pull vision models + build describe model |
 | `npm run ollama:modelfile` | Build `anthroposcenic-describe:latest` |
-| `npm run ollama:modelfile:transform` | Build transform model |
 
 ## ComfyUI
 

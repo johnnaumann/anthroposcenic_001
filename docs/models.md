@@ -16,7 +16,6 @@ This reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7
 |---------|---------|
 | `npm run ollama:modelfile` | Create/update describe model (required) |
 | `npm run ollama:models` | Optionally pull `qwen3-vl:8b`, then run modelfile script |
-| `npm run ollama:modelfile:transform` | `anthroposcenic-transform:latest` (unused in main UI) |
 | `npm run ollama:check` | Verify Ollama is reachable |
 
 Override at runtime: `OLLAMA_MODEL` in `.env.local` or `model` in the describe request body.

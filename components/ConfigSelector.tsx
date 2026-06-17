@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { ContentCard } from '@/components/PageShell';
+import { ContentCard, PageLoader } from '@/components/PageShell';
 import { ComfyUIConfig } from '@/types';
 import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { cn } from '@/lib/utils';
@@ -281,12 +281,7 @@ export function ConfigSelector({ description, onConfigSelected, disabled }: Conf
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading configuration…
-      </div>
-    );
+    return <PageLoader label="Loading configuration…" />;
   }
 
   if (loadFailed || !configOptions) {

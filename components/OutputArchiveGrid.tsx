@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, Download, Layers, Loader2, Sparkles, Trash2, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { ContentCard } from '@/components/PageShell';
+import { ContentCard, PageLoader } from '@/components/PageShell';
 import { OutputImageEntry, OutputImageListResponse } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -220,12 +220,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     `${image.imageUrl}${image.imageUrl.includes('?') ? '&' : '?'}download=1`;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading archive…
-      </div>
-    );
+    return <PageLoader label="Loading archive…" />;
   }
 
   return (
