@@ -14,7 +14,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Check, Download, Layers, Loader2, Sparkles, Trash2, Wand2, X } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ArrowLeft, Check, Download, Expand, Layers, Loader2, Sparkles, Trash2, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContentCard, PageLoader } from '@/components/PageShell';
 import { archiveEntryKey } from '@/lib/archive-utils';
@@ -93,6 +99,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
   const [selected, setSelected] = useState<string[]>([]);
   const [blending, setBlending] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<OutputImageEntry | null>(null);
+  const [previewImage, setPreviewImage] = useState<OutputImageEntry | null>(null);
 
   const loadImages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -391,6 +398,16 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                         <Button
                           size="icon-sm"
                           variant="outline"
+                          aria-label="View fullscreen"
+                          title="View"
+                          disabled={isBusy}
+                          onClick={() => setPreviewImage(image)}
+                        >
+                          <Expand />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
                           aria-label="Delete from archive"
                           title="Delete"
                           disabled={isBusy}
@@ -407,6 +424,40 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
           </div>
         )}
       </div>
+
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent
+          className="w-auto max-w-[min(100vw-2rem,36rem)] gap-3 p-3 sm:max-w-[min(100vw-2rem,36rem)]"
+          showCloseButton
+        >
+          <DialogTitle className="sr-only">
+            {previewImage?.kind === 'upload' ? 'Original upload' : 'Generated image'}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Fullscreen archive image preview
+          </DialogDescription>
+
+          {previewImage && (
+            <div className="space-y-3">
+              <div className="relative mx-auto aspect-[9/16] w-[min(100vw-4rem,calc(85dvh*9/16))] max-h-[85dvh] overflow-hidden rounded-lg bg-muted/30">
+                <Image
+                  src={previewImage.imageUrl}
+                  alt={previewImage.kind === 'upload' ? 'Original upload' : 'Generated image'}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 100vw, 36rem"
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              <p className="text-center text-[11px] text-muted-foreground">
+                {previewImage.kind === 'upload' ? 'Original' : 'Generated'} ·{' '}
+                {formatArchiveDate(previewImage.createdAt)} · {formatFileSize(previewImage.size)}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!pendingDelete}
