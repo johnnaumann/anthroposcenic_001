@@ -19,10 +19,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full font-sans antialiased [-webkit-tap-highlight-color:transparent]`}
       suppressHydrationWarning
     >
-      <body>
+      <body className="min-h-full bg-background text-foreground font-sans antialiased [font-feature-settings:'cv11','ss01'] [text-rendering:optimizeLegibility]">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

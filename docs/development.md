@@ -41,7 +41,7 @@ scripts/
 
 ## Styling
 
-- Tailwind CSS v4 (`@import "tailwindcss"` in `app/globals.css`)
+- Tailwind CSS v4 — minimal `app/globals.css` (Tailwind + ShadCN theme tokens); base styles on `app/layout.tsx`
 - ShadCN v4 / Radix Nova components
 - Geist Sans + Mono via `geist` package
 - Grayscale-only palette (no accent colours)
