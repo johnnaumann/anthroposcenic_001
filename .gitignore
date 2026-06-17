@@ -45,10 +45,6 @@ next-env.d.ts
 /comfyui
 /comfyui_*
 
-# logs
-/logs
-*.log
-
 # Cursor IDE (commit project rules under .cursor/rules/)
 .cursor/*
 !.cursor/rules/
