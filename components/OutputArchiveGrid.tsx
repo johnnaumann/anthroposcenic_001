@@ -423,14 +423,9 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
               {pendingDelete?.kind === 'upload'
                 ? 'This original upload will be permanently deleted.'
                 : 'This generated image will be permanently deleted.'}
-              {pendingDelete && (
-                <span className="mt-2 block truncate font-medium text-foreground">
-                  {pendingDelete.filename}
-                </span>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="-mx-0 -mb-0 border-0 bg-transparent p-0 sm:justify-end">
             <AlertDialogCancel disabled={!!busyKey}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
