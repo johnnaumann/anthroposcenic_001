@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteArchiveImage, isArchiveFilename, isUploadImageId, listArchiveImages } from '@/lib/output-archive';
 import { ArchiveImageKind } from '@/types';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   try {
     const images = await listArchiveImages();

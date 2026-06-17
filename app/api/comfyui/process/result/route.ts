@@ -5,8 +5,6 @@ import {
   getComfyUIOutputImage,
 } from '@/lib/comfyui';
 
-export const dynamic = 'force-dynamic';
-
 async function resolveOutputImage(
   promptId: string,
   jobStartTime: number

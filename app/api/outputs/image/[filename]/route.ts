@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isArchiveFilename } from '@/lib/output-archive';
 import { serveOutputImageFile } from '@/lib/serve-output-image';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { filename: string } }

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isSafeOutputFilename, serveOutputImageFile } from '@/lib/serve-output-image';
 
-export const dynamic = 'force-dynamic';
-
 const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
 
 /**

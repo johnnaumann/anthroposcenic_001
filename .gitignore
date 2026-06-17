@@ -40,7 +40,6 @@ uploads/
 **/uploads/**
 /temp/
 temp/
-/data/exports
 *.tmp
 
 # Misconfigured absolute UPLOAD_DIR without a leading slash
