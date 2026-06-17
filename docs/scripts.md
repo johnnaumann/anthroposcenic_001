@@ -15,25 +15,23 @@
 
 | Command | Description |
 |---------|-------------|
-| `npm run ollama:setup` | Install Ollama (platform helper) |
+| `npm run ollama:setup` | Verify Ollama install and running |
 | `npm run ollama:check` | Health check |
-| `npm run ollama:models` | Pull vision models + build describe model |
-| `npm run ollama:modelfile` | Build `anthroposcenic-describe:latest` |
+| `npm run ollama:modelfile` | Build `anthroposcenic-describe:latest` (required) |
 
 ## ComfyUI
 
 | Command | Description |
 |---------|-------------|
 | `npm run comfyui:setup` | Clone ComfyUI, venv, requirements |
-| `npm run comfyui:run` | Start ComfyUI (`:8188`) |
-| `npm run comfyui:flux` | Flux GGUF stack |
-| `npm run comfyui:download-all` | Bulk model download script |
-| `npm run comfyui:models` | Install ComfyUI models (check script) |
-| `npm run comfyui:install-creative-models` | Artistic SD checkpoints |
-| `npm run comfyui:upscaler` | ESRGAN-style upscale model |
-| `npm run comfyui:controlnet-tile` | ControlNet Tile weights |
-| `npm run comfyui:samplers` | Print available samplers |
-| `npm run comfyui:install-extra-samplers` | Extra samplers node pack |
-| `npm run comfyui:install-all-samplers` | Full sampler bundle |
+| `npm run comfyui:run` | Start ComfyUI manually (`:8188`) |
+| `npm run comfyui:flux` | Flux GGUF stack (default generation) |
+| `npm run comfyui:download-all` | SD checkpoint bulk download |
+| `npm run comfyui:upscaler` | ESRGAN upscale model (SD hi-res pass) |
+| `npm run comfyui:controlnet-tile` | ControlNet Tile weights (SD refine) |
+| `npm run comfyui:samplers` | Print available samplers (ComfyUI must be running) |
+| `npm run comfyui:install-all-samplers` | Optional custom-node sampler packs |
 
 Shell scripts live in `scripts/`; npm scripts are the supported entry points.
+
+ComfyUI also auto-starts from the app on first process (`lib/comfyui-startup.ts`); `comfyui:run` is for manual debugging.

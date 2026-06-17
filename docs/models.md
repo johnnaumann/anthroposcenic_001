@@ -15,8 +15,8 @@ This reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7
 | Command | Purpose |
 |---------|---------|
 | `npm run ollama:modelfile` | Create/update describe model (required) |
-| `npm run ollama:models` | Optionally pull `qwen3-vl:8b`, then run modelfile script |
 | `npm run ollama:check` | Verify Ollama is reachable |
+| `npm run ollama:setup` | Verify install and list models |
 
 Override at runtime: `OLLAMA_MODEL` in `.env.local` or `model` in the describe request body.
 
@@ -48,7 +48,6 @@ UI labels: **Fast** (schnell) / **Slow** (dev).
 
 ```bash
 npm run comfyui:download-all
-npm run comfyui:install-creative-models
 npm run comfyui:upscaler          # hi-res pass
 npm run comfyui:controlnet-tile   # ControlNet Tile
 ```
@@ -61,8 +60,7 @@ SD checkpoints can auto-download via `lib/model-downloader.ts` when the process 
 
 ```bash
 npm run comfyui:samplers
-npm run comfyui:install-extra-samplers
-npm run comfyui:install-all-samplers
+npm run comfyui:install-all-samplers   # optional
 ```
 
 Restart ComfyUI after installing custom nodes.

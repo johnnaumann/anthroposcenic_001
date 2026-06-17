@@ -21,7 +21,7 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "  ${BLUE}App:${NC}      http://localhost:3000"
 echo -e "  ${BLUE}Ollama:${NC}   http://localhost:11434"
-echo -e "  ${BLUE}ComfyUI:${NC}  http://localhost:8188"
+echo -e "  ${BLUE}ComfyUI:${NC}  starts on first process (or: npm run comfyui:run)"
 echo ""
 
 # Open browser based on OS

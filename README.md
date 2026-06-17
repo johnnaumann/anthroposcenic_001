@@ -76,7 +76,6 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 ```bash
 npm run ollama:modelfile   # pulls llava:7b if needed, builds anthroposcenic-describe:latest
-# or: npm run ollama:models   # optional qwen3-vl:8b + modelfile step
 ```
 
 **ComfyUI**

@@ -62,13 +62,11 @@ MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' || echo "")
 if [ -z "$MODELS" ]; then
     echo "⚠️  No models installed"
     echo ""
-    echo "To install recommended models, run:"
-    echo "  npm run ollama:models"
-    echo "  or"
-    echo "  ./scripts/install-ollama-models.sh"
+    echo "To install the describe model, run:"
+    echo "  npm run ollama:modelfile"
     echo ""
-    echo "Or install manually:"
-    echo "  ollama pull qwen2.5-vl:latest"
+    echo "Optional alternates (see config/models.json):"
+    echo "  ollama pull qwen3-vl:8b"
 else
     echo "✅ Installed models:"
     echo "$MODELS" | while read -r model; do
@@ -77,26 +75,18 @@ else
         fi
     done
     
-    # Check if qwen3-vl:8b or qwen2.5-vl is installed
-    if echo "$MODELS" | grep -q "qwen.*vl"; then
+    if echo "$MODELS" | grep -q "anthroposcenic-describe"; then
         echo ""
-        echo "✅ Recommended Qwen vision model is installed"
+        echo "✅ Describe model is installed"
     else
         echo ""
-        echo "💡 Tip: Install recommended models with:"
-        echo "   npm run ollama:models"
-        echo "   or"
-        echo "   ollama pull qwen3-vl:8b"
+        echo "💡 Build the describe model with:"
+        echo "   npm run ollama:modelfile"
     fi
 fi
 
 echo ""
 echo "✅ Ollama setup complete!"
 echo ""
-echo "Ollama is configured for local-only operation:"
-echo "  - Host: http://localhost:11434"
-echo "  - All processing happens on your machine"
-echo "  - No external API calls"
-echo "  - Complete privacy"
-echo ""
-echo "To verify, run: curl http://localhost:11434/api/tags"
+echo "Ollama host: http://localhost:11434"
+echo "Verify: curl http://localhost:11434/api/tags"

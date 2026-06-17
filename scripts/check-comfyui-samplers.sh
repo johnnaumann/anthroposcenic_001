@@ -18,7 +18,7 @@ echo ""
 # Check if ComfyUI is running
 if ! curl -s "$COMFYUI_HOST/system_stats" > /dev/null 2>&1; then
     echo -e "${RED}❌ ComfyUI is not running${NC}"
-    echo "   Start ComfyUI first: npm run dev:comfyui"
+    echo "   Start ComfyUI first: npm run comfyui:run"
     exit 1
 fi
 
