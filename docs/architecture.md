@@ -33,7 +33,7 @@ sequenceDiagram
 | Configure | `/configure` | Flux (Fast/Slow) or SD checkpoint, denoise, sampler, negative prompt, advanced toggles; stored in `sessionStorage` |
 | Process | `/process` | Auto-runs on mount; phased progress bar; recovery poll if SSE drops |
 | Complete | `/complete` | Completion message + download / archive / reinterpret |
-| Archive | `/archive` | Masonry grid of `comfyui/output/anthroposcenic_*`; use, download, delete |
+| Archive | `/archive` | Grid of uploads + `comfyui/output/` (9:16 thumbnails); use, download, delete |
 
 There is **no** separate transform step. Configuration is manual in the configure UI.
 

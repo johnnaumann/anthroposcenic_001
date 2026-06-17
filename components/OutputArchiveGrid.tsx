@@ -4,9 +4,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ArrowLeft, Check, Download, Layers, Loader2, Sparkles, Trash2, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContentCard, PageLoader } from '@/components/PageShell';
+import { archiveEntryKey } from '@/lib/archive-utils';
 import { OutputImageEntry, OutputImageListResponse } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +36,14 @@ function formatFileSize(bytes: number): string {
     return `${(bytes / 1024).toFixed(0)} KB`;
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function KindChip({ kind }: { kind: OutputImageEntry['kind'] }) {
+  return (
+    <span className="absolute left-2 top-2 z-10 rounded-full border border-border bg-background/85 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-sm">
+      {kind === 'upload' ? 'Original' : 'Generated'}
+    </span>
+  );
 }
 
 interface OutputArchiveGridProps {
@@ -52,14 +71,13 @@ function ArchiveImage({ src, alt }: { src: string; alt: string }) {
       ref={ref}
       src={src}
       alt={alt}
-      width={1024}
-      height={1024}
+      fill
       unoptimized
       sizes="(max-width: 640px) 50vw, 33vw"
       onLoad={reveal}
       onError={reveal}
       className={cn(
-        'h-auto w-full transition-opacity duration-700 ease-out',
+        'object-cover transition-opacity duration-700 ease-out',
         loaded ? 'opacity-100' : 'opacity-0'
       )}
     />
@@ -70,10 +88,11 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
   const router = useRouter();
   const [images, setImages] = useState<OutputImageEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyFilename, setBusyFilename] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [blending, setBlending] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<OutputImageEntry | null>(null);
 
   const loadImages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -97,9 +116,6 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
 
   const didInitialLoad = useRef(false);
   useEffect(() => {
-    // Fetch once. React Strict Mode (on in dev) double-invokes effects, which
-    // would toggle `loading` — and the page's card — twice, flickering a card
-    // behind the spinner. The guard keeps the load→loaded transition to one step.
     if (didInitialLoad.current) return;
     didInitialLoad.current = true;
     void loadImages();
@@ -122,12 +138,19 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
   }, [loadImages]);
 
   const handleUse = async (image: OutputImageEntry) => {
-    setBusyFilename(image.filename);
+    const key = archiveEntryKey(image);
+    setBusyKey(key);
     try {
+      if (image.kind === 'upload' && image.imageId) {
+        toast.success('Image selected');
+        router.push(`/describe?imageId=${image.imageId}`);
+        return;
+      }
+
       const response = await fetch('/api/outputs/use', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: image.filename }),
+        body: JSON.stringify({ kind: 'generated', filename: image.filename }),
       });
 
       if (!response.ok) {
@@ -140,33 +163,36 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
       router.push(`/describe?imageId=${data.imageId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to use image');
-      setBusyFilename(null);
+      setBusyKey(null);
     }
   };
 
-  const handleDelete = async (image: OutputImageEntry) => {
-    if (!window.confirm(`Remove ${image.filename} from the archive?`)) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
 
-    setBusyFilename(image.filename);
+    const image = pendingDelete;
+    const key = archiveEntryKey(image);
+    setBusyKey(key);
     try {
-      const response = await fetch(
-        `/api/outputs?filename=${encodeURIComponent(image.filename)}`,
-        { method: 'DELETE' }
-      );
+      const query =
+        image.kind === 'upload' && image.imageId
+          ? `kind=upload&imageId=${encodeURIComponent(image.imageId)}`
+          : `kind=generated&filename=${encodeURIComponent(image.filename)}`;
+
+      const response = await fetch(`/api/outputs?${query}`, { method: 'DELETE' });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete image');
       }
 
-      setImages((current) => current.filter((entry) => entry.filename !== image.filename));
+      setImages((current) => current.filter((entry) => archiveEntryKey(entry) !== key));
       toast.success('Removed from archive');
+      setPendingDelete(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete image');
     } finally {
-      setBusyFilename(null);
+      setBusyKey(null);
     }
   };
 
@@ -175,16 +201,17 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     setSelected([]);
   };
 
-  const toggleSelect = (filename: string) => {
+  const toggleSelect = (image: OutputImageEntry) => {
+    const key = archiveEntryKey(image);
     setSelected((current) => {
-      if (current.includes(filename)) {
-        return current.filter((f) => f !== filename);
+      if (current.includes(key)) {
+        return current.filter((entryKey) => entryKey !== key);
       }
       if (current.length >= MAX_BLEND) {
         toast.error(`You can blend up to ${MAX_BLEND} images at once.`);
         return current;
       }
-      return [...current, filename];
+      return [...current, key];
     });
   };
 
@@ -192,18 +219,25 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     if (selected.length < 2) return;
     setBlending(true);
     try {
-      // Adopt every selected archive image into the upload store; the describe
-      // step then fuses them into one prompt and generates a fresh image.
       const ids = await Promise.all(
-        selected.map(async (filename) => {
+        selected.map(async (key) => {
+          const image = images.find((entry) => archiveEntryKey(entry) === key);
+          if (!image) {
+            throw new Error('Image not found');
+          }
+
+          if (image.kind === 'upload' && image.imageId) {
+            return image.imageId;
+          }
+
           const res = await fetch('/api/outputs/use', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename }),
+            body: JSON.stringify({ kind: 'generated', filename: image.filename }),
           });
           if (!res.ok) {
             const e = await res.json().catch(() => ({}));
-            throw new Error(e.error || `Failed to prepare ${filename}`);
+            throw new Error(e.error || `Failed to prepare ${image.filename}`);
           }
           const { imageId } = await res.json();
           return imageId as string;
@@ -216,8 +250,11 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
     }
   };
 
-  const downloadUrl = (image: OutputImageEntry) =>
-    `${image.imageUrl}${image.imageUrl.includes('?') ? '&' : '?'}download=1`;
+  const downloadUrl = (image: OutputImageEntry) => {
+    const base = image.imageUrl;
+    const joiner = base.includes('?') ? '&' : '?';
+    return `${base}${joiner}download=1`;
+  };
 
   if (loading) {
     return <PageLoader label="Loading archive…" />;
@@ -232,7 +269,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
             <p className="text-sm text-muted-foreground">
               {selectMode
                 ? 'Pick 2 or more images to blend into one abstract piece.'
-                : 'Previously rendered images. Reinterpret one, blend several, or manage the archive.'}
+                : 'Original uploads and generated renders. Reinterpret, blend, or manage the archive.'}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -277,23 +314,24 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
 
         {images.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
-            <p className="text-sm text-muted-foreground">No rendered images yet.</p>
+            <p className="text-sm text-muted-foreground">No images yet.</p>
             <Button variant="outline" size="sm" className="mt-4" onClick={() => router.push('/upload')}>
               Upload an image
             </Button>
           </div>
         ) : (
-          <div className="columns-2 gap-3 sm:columns-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {images.map((image) => {
-              const isBusy = busyFilename === image.filename;
-              const isSelected = selected.includes(image.filename);
+              const key = archiveEntryKey(image);
+              const isBusy = busyKey === key;
+              const isSelected = selected.includes(key);
 
               return (
                 <article
-                  key={image.filename}
-                  onClick={selectMode ? () => toggleSelect(image.filename) : undefined}
+                  key={key}
+                  onClick={selectMode ? () => toggleSelect(image) : undefined}
                   className={cn(
-                    'relative mb-3 break-inside-avoid overflow-hidden rounded-xl border bg-card transition',
+                    'relative overflow-hidden rounded-xl border bg-card transition',
                     isBusy && 'opacity-60',
                     selectMode && 'cursor-pointer',
                     isSelected ? 'border-foreground ring-2 ring-foreground' : 'border-border'
@@ -302,7 +340,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                   {selectMode && (
                     <span
                       className={cn(
-                        'absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
+                        'absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
                         isSelected
                           ? 'border-foreground bg-foreground text-background'
                           : 'border-white/70 bg-black/40 text-transparent'
@@ -312,17 +350,20 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                     </span>
                   )}
 
-                  <div className="bg-muted/30">
-                    <ArchiveImage key={image.imageUrl} src={image.imageUrl} alt={image.filename} />
+                  <KindChip kind={image.kind} />
+
+                  <div className="relative aspect-[9/16] w-full bg-muted/30">
+                    <ArchiveImage
+                      key={image.imageUrl}
+                      src={image.imageUrl}
+                      alt={image.kind === 'upload' ? 'Original upload' : 'Generated image'}
+                    />
                   </div>
 
                   <div className="space-y-3 p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">{image.filename}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatArchiveDate(image.createdAt)} · {formatFileSize(image.size)}
-                      </p>
-                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatArchiveDate(image.createdAt)} · {formatFileSize(image.size)}
+                    </p>
 
                     {!selectMode && (
                       <div className="flex items-center justify-end gap-1">
@@ -353,7 +394,7 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
                           aria-label="Delete from archive"
                           title="Delete"
                           disabled={isBusy}
-                          onClick={() => handleDelete(image)}
+                          onClick={() => setPendingDelete(image)}
                         >
                           <Trash2 />
                         </Button>
@@ -366,6 +407,41 @@ export function OutputArchiveGrid({ onBack }: OutputArchiveGridProps) {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !busyKey) {
+            setPendingDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from archive?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.kind === 'upload'
+                ? 'This original upload will be permanently deleted.'
+                : 'This generated image will be permanently deleted.'}
+              {pendingDelete && (
+                <span className="mt-2 block truncate font-medium text-foreground">
+                  {pendingDelete.filename}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!busyKey}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={!!busyKey}
+              onClick={() => void confirmDelete()}
+            >
+              {busyKey ? <Loader2 className="animate-spin" /> : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ContentCard>
   );
 }

@@ -35,15 +35,22 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# uploads and temp
-/uploads
-/temp
+# uploads, temp, and generated artwork (never commit)
+/uploads/
+uploads/
+**/uploads/**
+/temp/
+temp/
 /data/exports
 *.tmp
 
-# ComfyUI
+# Misconfigured absolute UPLOAD_DIR without a leading slash
+/Users/
+
+# ComfyUI install and generated outputs
 /comfyui
 /comfyui_*
+**/comfyui/output/**
 
 # Cursor IDE (commit project rules under .cursor/rules/)
 .cursor/*

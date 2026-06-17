@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteOutputImage, isArchiveFilename, listOutputImages } from '@/lib/output-archive';
+import { deleteArchiveImage, isArchiveFilename, isUploadImageId, listArchiveImages } from '@/lib/output-archive';
+import { ArchiveImageKind } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const images = await listOutputImages();
+    const images = await listArchiveImages();
     return NextResponse.json(
       { images },
       {
@@ -25,16 +26,27 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const kind = request.nextUrl.searchParams.get('kind') as ArchiveImageKind | null;
     const filename = request.nextUrl.searchParams.get('filename');
+    const imageId = request.nextUrl.searchParams.get('imageId');
+
+    if (kind === 'upload') {
+      if (!imageId || !isUploadImageId(imageId)) {
+        return NextResponse.json({ error: 'Invalid image id' }, { status: 400 });
+      }
+      await deleteArchiveImage('upload', imageId);
+      return NextResponse.json({ success: true, kind, imageId });
+    }
 
     if (!filename || !isArchiveFilename(filename)) {
       return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
     }
 
-    await deleteOutputImage(filename);
+    await deleteArchiveImage('generated', filename);
 
     return NextResponse.json({
       success: true,
+      kind: 'generated',
       filename,
     });
   } catch (error) {

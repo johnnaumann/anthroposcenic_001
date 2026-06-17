@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adoptOutputImage, isArchiveFilename } from '@/lib/output-archive';
+import { adoptOutputImage, isArchiveFilename, isUploadImageId } from '@/lib/output-archive';
+import { ArchiveImageKind } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const kind = (body?.kind ?? 'generated') as ArchiveImageKind;
+
+    if (kind === 'upload') {
+      const imageId = typeof body?.imageId === 'string' ? body.imageId : '';
+      if (!isUploadImageId(imageId)) {
+        return NextResponse.json({ error: 'Invalid image id' }, { status: 400 });
+      }
+      return NextResponse.json({
+        imageId,
+        imageUrl: `/api/images/${imageId}`,
+      });
+    }
+
     const filename = typeof body?.filename === 'string' ? body.filename : '';
 
     if (!isArchiveFilename(filename)) {

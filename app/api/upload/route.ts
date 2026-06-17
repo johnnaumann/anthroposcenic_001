@@ -3,10 +3,10 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
+import { resolveUploadDir } from '@/lib/project-paths';
 import { UploadResponse } from '@/types';
 
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760', 10); // 10MB default
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 // Image compression settings
 const MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || '1024', 10); // Max width in pixels
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create upload directory if it doesn't exist
-    const uploadPath = join(process.cwd(), UPLOAD_DIR);
+    const uploadPath = resolveUploadDir();
     try {
       await mkdir(uploadPath, { recursive: true });
     } catch (error) {

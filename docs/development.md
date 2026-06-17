@@ -18,7 +18,7 @@ components/
   DescriptionStream.tsx    # describe SSE + inline edit
   ConfigSelector.tsx       # Flux Fast/Slow or SD controls
   ComfyUIProgress.tsx      # process SSE
-  OutputArchiveGrid.tsx    # masonry archive
+  OutputArchiveGrid.tsx    # archive grid (9:16 thumbnails)
   ui/                      # ShadCN v4 primitives
 lib/
   ollama.ts

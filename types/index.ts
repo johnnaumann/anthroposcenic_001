@@ -8,11 +8,16 @@ export interface UploadResponse {
   mimeType: string;
 }
 
+export type ArchiveImageKind = 'upload' | 'generated';
+
 export interface OutputImageEntry {
+  kind: ArchiveImageKind;
   filename: string;
   imageUrl: string;
   createdAt: string;
   size: number;
+  /** Present when kind is upload */
+  imageId?: string;
 }
 
 export interface OutputImageListResponse {

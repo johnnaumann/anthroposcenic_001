@@ -3,14 +3,13 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { streamOllamaResponse, imageToBase64 } from '@/lib/ollama';
+import { resolveUploadDir } from '@/lib/project-paths';
 import { truncatePromptAtLimit } from '@/lib/prompt-limits';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { DescribeRequest } from '@/types';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
-
 async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
-  const uploadPath = join(process.cwd(), UPLOAD_DIR);
+  const uploadPath = resolveUploadDir();
   const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   const mimeTypes: Record<string, string> = {
     jpg: 'image/jpeg',

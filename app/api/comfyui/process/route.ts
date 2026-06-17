@@ -5,14 +5,13 @@ import { existsSync } from 'fs';
 import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfyUIAvailability, isFluxModel } from '@/lib/comfyui';
 import { startComfyUI } from '@/lib/comfyui-startup';
 import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
+import { resolveUploadDir } from '@/lib/project-paths';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
 import { createProgressAggregator, getSamplingPhases } from '@/lib/processing-progress';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
-
 async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
-  const uploadPath = join(process.cwd(), UPLOAD_DIR);
+  const uploadPath = resolveUploadDir();
   const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   const mimeTypes: Record<string, string> = {
     jpg: 'image/jpeg',

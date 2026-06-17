@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, unlink } from 'fs/promises';
+import { readFile, unlink, stat } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { UPLOAD_DIR, isUploadImageId } from '@/lib/output-archive';
+import { buildOutputImageEtag } from '@/lib/serve-output-image';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const UPLOAD_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'] as const;
 
 export async function GET(
   request: NextRequest,
@@ -11,16 +13,16 @@ export async function GET(
 ) {
   try {
     const { imageId } = params;
-    
-    // Find the file with this imageId (could be any extension)
-    const uploadPath = join(process.cwd(), UPLOAD_DIR);
-    const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+    if (!isUploadImageId(imageId)) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    }
     
     let filePath: string | null = null;
     let mimeType: string | null = null;
 
-    for (const ext of extensions) {
-      const candidatePath = join(uploadPath, `${imageId}.${ext}`);
+    for (const ext of UPLOAD_EXTENSIONS) {
+      const candidatePath = join(UPLOAD_DIR, `${imageId}.${ext}`);
       if (existsSync(candidatePath)) {
         filePath = candidatePath;
         mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
@@ -35,12 +37,35 @@ export async function GET(
       );
     }
 
+    const fileStat = await stat(filePath);
+    const etag = buildOutputImageEtag(fileStat.size, fileStat.mtimeMs);
+    const versioned = request.nextUrl.searchParams.has('v');
+
+    if (request.headers.get('if-none-match') === etag) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'Cache-Control': versioned
+            ? 'private, no-cache, must-revalidate'
+            : 'public, max-age=31536000, immutable',
+        },
+      });
+    }
+
     const fileBuffer = await readFile(filePath);
+    const download = request.nextUrl.searchParams.get('download') === '1';
 
     return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': mimeType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        ETag: etag,
+        'Cache-Control': versioned
+          ? 'private, no-cache, must-revalidate'
+          : 'public, max-age=31536000, immutable',
+        ...(download
+          ? { 'Content-Disposition': `attachment; filename="${imageId}.${filePath.split('.').pop()}"` }
+          : {}),
       },
     });
   } catch (error) {
@@ -58,16 +83,16 @@ export async function DELETE(
 ) {
   try {
     const { imageId } = params;
-    
-    // Find and delete the file with this imageId (could be any extension)
-    const uploadPath = join(process.cwd(), UPLOAD_DIR);
-    const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+    if (!isUploadImageId(imageId)) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    }
     
     let deleted = false;
     let deletedPath: string | null = null;
 
-    for (const ext of extensions) {
-      const candidatePath = join(uploadPath, `${imageId}.${ext}`);
+    for (const ext of UPLOAD_EXTENSIONS) {
+      const candidatePath = join(UPLOAD_DIR, `${imageId}.${ext}`);
       if (existsSync(candidatePath)) {
         try {
           await unlink(candidatePath);
