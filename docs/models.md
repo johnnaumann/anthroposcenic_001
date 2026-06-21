@@ -12,7 +12,7 @@ Reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7b`), 
 
 Override at runtime: `OLLAMA_MODEL` in `.env.local` or `model` in the describe request body.
 
-The modelfile `SYSTEM` block is legacy tag-oriented text; the live describe route sends its own art-critic user prompt in `app/api/describe/route.ts`. Recreate the model after modelfile edits (`npm run setup:ollama`).
+The modelfile `SYSTEM` block is intentionally minimal (vision assistant, follow user instructions). The art-critic prompt format lives in `lib/describe-route.ts` (`buildDescribePrompt`) and is sent as the user message on each describe request. Recreate the model after modelfile edits (`npm run setup:ollama`).
 
 Health check: `bash scripts/check-ollama.sh`
 

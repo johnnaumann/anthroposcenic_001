@@ -40,7 +40,7 @@ There is **no** separate transform step. Configuration is manual in the configur
 ## Describe behaviour
 
 - Default model: `anthroposcenic-describe:latest` (`FROM llava:7b` in `config/ollama-modelfile`).
-- The **user prompt** in `app/api/describe/route.ts` drives output format (art-critic prose + tags), not JSON and not auto-generated ComfyUI config.
+- The **user prompt** in `lib/describe-route.ts` (`buildDescribePrompt`) drives output format (art-critic prose + tags), not JSON and not auto-generated ComfyUI config.
 - Stream capped by `lib/prompt-limits.ts` (~220 words / 80 tags).
 - Supports optional `imageIds[]` for multi-image blend prompts.
 - Calls ComfyUI `/free` before Ollama to release GPU memory on Apple Silicon.

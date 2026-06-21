@@ -67,13 +67,18 @@ echo ""
 echo "🔨 Creating custom model '$MODEL_NAME' from modelfile..."
 echo ""
 
-# Create model from modelfile
+# Replace existing model so modelfile edits take effect (older Ollama has no --force).
+if ollama list 2>/dev/null | awk '{print $1}' | grep -qx "$MODEL_NAME"; then
+    echo "♻️  Removing existing '$MODEL_NAME' before recreate..."
+    ollama rm "$MODEL_NAME" > /dev/null
+fi
+
 if ollama create "$MODEL_NAME" -f "$MODELLFILE"; then
     echo ""
     echo "✅ Custom model '$MODEL_NAME' created successfully!"
     echo ""
     echo "You can now use this model in the application."
-    echo "It includes a system prompt optimized for image description."
+    echo "Describe prompt format is sent by the app (lib/describe-route.ts); the modelfile only sets a minimal system role."
     echo ""
     echo "To verify, run:"
     echo "  ollama list | grep $MODEL_NAME"
@@ -83,8 +88,5 @@ if ollama create "$MODEL_NAME" -f "$MODELLFILE"; then
 else
     echo ""
     echo "❌ Failed to create custom model"
-    echo ""
-    echo "If the model already exists, you can update it with:"
-    echo "  ollama create $MODEL_NAME -f $MODELLFILE --force"
     exit 1
 fi
