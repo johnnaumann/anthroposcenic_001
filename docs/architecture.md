@@ -15,7 +15,7 @@ sequenceDiagram
     N->>N: Sharp resize → uploads/
     U->>N: Describe (SSE)
     N->>C: POST /free (unload GPU, best-effort)
-    N->>O: Vision + art-critic user prompt
+    N->>O: Vision model + describe prompt
     O-->>N: Stream tokens (capped ~220 words)
     U->>U: Edit prompt in textarea
     U->>N: Configure → sessionStorage
@@ -80,7 +80,7 @@ flowchart LR
 1. `app/api/describe/route.ts` → `lib/describe-route.ts` (`runDescribeStream`)
 2. Load images from `uploads/` via `lib/upload-images.ts`
 3. Best-effort `POST /free` on ComfyUI to release GPU before Ollama
-4. `buildDescribePrompt()` sends the art-critic user message (prose + tags)
+4. `buildDescribePrompt()` sends the describe prompt (natural language + style tags)
 5. `lib/ollama.ts` streams from Ollama; `lib/ollama-stream.ts` parses tokens
 6. `lib/prompt-limits.ts` caps output; `lib/streaming.ts` formats SSE
 

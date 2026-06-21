@@ -4,7 +4,7 @@
 
 **Runtime default:** `llava:7b` (`config/models.json`, overridable via `OLLAMA_MODEL`).
 
-There is no custom `anthroposcenic-describe` wrapper. The app calls Ollama directly with the vision model and sends the full art-critic prompt as the user message.
+There is no custom `anthroposcenic-describe` wrapper. The app calls Ollama directly with the vision model and sends the describe prompt as the user message.
 
 ### Setup
 
@@ -24,7 +24,7 @@ All describe instructions live in the app:
 
 | Layer | File | Role |
 |-------|------|------|
-| Output format | `lib/describe-route.ts` | `buildDescribePrompt()` — art-critic prose + style tags |
+| Output format | `lib/describe-route.ts` | `buildDescribePrompt()` — natural-language description + style tags |
 | Length cap | `lib/prompt-limits.ts` | ~220 words / 80 tags |
 
 Change describe wording in `buildDescribePrompt()`. No modelfile to maintain.
