@@ -35,6 +35,73 @@ function createStreamResponse(): {
   return { stream, controller: controller! };
 }
 
+function assertFetchStreamResponse(response: Response, errorMessage: string): void {
+  if (!response.ok) {
+    throw new Error(errorMessage);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body');
+  }
+}
+
+/** Process complete SSE lines from a buffer; return any trailing partial line. */
+function drainSSEBuffer(
+  buffer: string,
+  onLine: (line: string) => boolean | void,
+  flush = false
+): string {
+  const lines = buffer.split('\n');
+  const pending = flush ? '' : lines.pop() || '';
+
+  for (const line of lines) {
+    if (onLine(line) === true) {
+      return flush ? '' : pending;
+    }
+  }
+
+  return flush ? '' : pending;
+}
+
+export async function readFetchSSEStream(
+  response: Response,
+  options: {
+    errorMessage: string;
+    onLine: (line: string) => boolean | void;
+    shouldStop?: () => boolean;
+  }
+): Promise<void> {
+  assertFetchStreamResponse(response, options.errorMessage);
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      drainSSEBuffer(buffer, options.onLine, true);
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    buffer = drainSSEBuffer(buffer, options.onLine, false);
+
+    if (options.shouldStop?.()) {
+      return;
+    }
+  }
+}
+
+export function parseSSEDataLine(line: string): StreamMessage | null {
+  if (!line.startsWith('data: ')) {
+    return null;
+  }
+
+  return JSON.parse(line.slice(6)) as StreamMessage;
+}
+
 /**
  * Send a message through the stream
  * Returns false if the controller is closed

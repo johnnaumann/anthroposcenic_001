@@ -1,4 +1,5 @@
 import { ComfyUIConfig } from '@/types';
+import { readFetchSSEStream } from '@/lib/streaming';
 
 type ProcessStreamEvent =
   | { type: 'status'; data: string }
@@ -111,29 +112,6 @@ function parseStreamPayload(run: ActiveRun, state: StreamState, payload: string)
   }
 }
 
-function processStreamLines(
-  run: ActiveRun,
-  state: StreamState,
-  chunk: string,
-  flush = false
-): string {
-  let buffer = chunk;
-  const lines = buffer.split('\n');
-  buffer = flush ? '' : lines.pop() || '';
-
-  for (const line of lines) {
-    if (state.completed) return buffer;
-    parseStreamPayload(run, state, line);
-    if (state.completed) return buffer;
-  }
-
-  if (flush && buffer.trim()) {
-    parseStreamPayload(run, state, buffer.trim());
-  }
-
-  return flush ? '' : buffer;
-}
-
 async function tryRecoverImage(
   run: ActiveRun,
   state: StreamState
@@ -182,29 +160,14 @@ async function startRun(
       signal: run.abortController.signal,
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to start ComfyUI processing');
-    }
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        buffer = processStreamLines(run, state, buffer, true);
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      buffer = processStreamLines(run, state, buffer);
-      if (state.completed) return;
-    }
+    await readFetchSSEStream(response, {
+      errorMessage: 'Failed to start ComfyUI processing',
+      onLine: (line) => {
+        parseStreamPayload(run, state, line);
+        return state.completed ? true : undefined;
+      },
+      shouldStop: () => state.completed,
+    });
 
     if (state.completed) return;
 

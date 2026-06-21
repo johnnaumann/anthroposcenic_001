@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ContentCard, PageCenter } from '@/components/PageShell';
 import { Copy, Loader2, ArrowRight } from 'lucide-react';
 import { countPromptWords } from '@/lib/prompt-limits';
+import { parseSSEDataLine, readFetchSSEStream } from '@/lib/streaming';
 import { toast } from 'sonner';
 
 interface DescriptionStreamProps {
@@ -56,61 +57,40 @@ export function DescriptionStream({ imageId, imageIds, onDescriptionComplete, di
         signal: abortControllerRef.current.signal,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to start description generation');
-      }
-
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          if (isStreaming && description) {
-            console.warn('[DescriptionStream] Stream ended without done message, but we have description text');
-          }
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (data.type === 'token' && data.data) {
-                setDescription(prev => prev + data.data);
-              } else if (data.type === 'done') {
-                const finalDescription = typeof data.data === 'string' ? data.data : description;
-                if (finalDescription && finalDescription.trim()) {
-                  setDescription(finalDescription);
-                  setIsStreaming(false);
-                  return;
-                } else {
-                  throw new Error('Invalid description format received');
-                }
-              } else if (data.type === 'error') {
-                throw new Error(data.error || 'Unknown error');
-              }
-            } catch (e) {
-              if (e instanceof SyntaxError) {
-                console.warn('[DescriptionStream] Failed to parse SSE line:', line.substring(0, 100));
-              } else {
-                throw e;
-              }
+      await readFetchSSEStream(response, {
+        errorMessage: 'Failed to start description generation',
+        onLine: (line) => {
+          try {
+            const data = parseSSEDataLine(line);
+            if (!data) {
+              return;
             }
+
+            if (data.type === 'token' && data.data) {
+              setDescription((prev) => prev + String(data.data));
+            } else if (data.type === 'done') {
+              const finalDescription =
+                typeof data.data === 'string' ? data.data : description;
+              if (finalDescription && finalDescription.trim()) {
+                setDescription(finalDescription);
+                setIsStreaming(false);
+                return true;
+              }
+
+              throw new Error('Invalid description format received');
+            } else if (data.type === 'error') {
+              throw new Error(data.error || 'Unknown error');
+            }
+          } catch (error) {
+            if (error instanceof SyntaxError) {
+              console.warn('[DescriptionStream] Failed to parse SSE line:', line.substring(0, 100));
+              return;
+            }
+
+            throw error;
           }
-        }
-      }
+        },
+      });
 
       if (isStreaming) {
         if (description && description.length > 0) {
