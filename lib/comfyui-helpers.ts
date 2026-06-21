@@ -2,6 +2,8 @@
  * Shared helpers for ComfyUI API and model-directory lookups.
  */
 
+export const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
+
 export interface ComfyHistoryOutputImage {
   filename: string;
   subfolder?: string;
@@ -102,4 +104,22 @@ export function findFirstHistoryOutputImage(
 export function buildOutputImagePath(image: ComfyHistoryOutputImage): string {
   const subfolder = image.subfolder || '';
   return subfolder ? `${subfolder}/${image.filename}` : image.filename;
+}
+
+export async function getAvailableSamplers(): Promise<string[]> {
+  try {
+    const data = await fetchComfyObjectInfo(COMFYUI_HOST);
+    const ksamplerInfo = (data.KSampler as { input?: { required?: { sampler_name?: unknown } } } | undefined)
+      ?.input?.required?.sampler_name;
+    const list = parseObjectInfoStringList(ksamplerInfo);
+
+    if (list) {
+      return list;
+    }
+
+    return ['euler', 'euler_ancestral', 'dpm_2', 'dpm_2_ancestral', 'dpmpp_2m', 'dpmpp_2s_ancestral', 'lms', 'plms', 'ddim'];
+  } catch (error) {
+    console.error('Failed to get available samplers:', error);
+    return ['euler', 'euler_ancestral', 'dpm_2', 'dpm_2_ancestral', 'dpmpp_2m', 'lms', 'plms', 'ddim'];
+  }
 }
