@@ -12,7 +12,7 @@ export interface StreamMessage {
 /**
  * Format a message for SSE (Server-Sent Events)
  */
-export function formatSSEMessage(message: StreamMessage): string {
+function formatSSEMessage(message: StreamMessage): string {
   const data = JSON.stringify(message);
   return `data: ${data}\n\n`;
 }
@@ -20,7 +20,7 @@ export function formatSSEMessage(message: StreamMessage): string {
 /**
  * Create a streaming response with proper headers
  */
-export function createStreamResponse(): {
+function createStreamResponse(): {
   stream: ReadableStream<Uint8Array>;
   controller: ReadableStreamDefaultController<Uint8Array>;
 } {

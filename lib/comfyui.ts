@@ -90,7 +90,7 @@ export async function getAvailableSamplers(): Promise<string[]> {
 /**
  * Validate and get a valid sampler name, with fallback
  */
-export async function getValidSampler(requestedSampler: string): Promise<string> {
+async function getValidSampler(requestedSampler: string): Promise<string> {
   const availableSamplers = await getAvailableSamplers();
   
   // If requested sampler is available, use it
@@ -124,7 +124,7 @@ export async function getValidSampler(requestedSampler: string): Promise<string>
  * Get list of available checkpoints from ComfyUI
  * Checks both the API and filesystem
  */
-export async function getAvailableCheckpoints(): Promise<string[]> {
+async function getAvailableCheckpoints(): Promise<string[]> {
   try {
     // First, try to get from API
     const response = await fetch(`${COMFYUI_HOST}/object_info`, {
@@ -179,7 +179,7 @@ export async function getAvailableCheckpoints(): Promise<string[]> {
  * Upload an image to ComfyUI
  * Returns the filename that ComfyUI uses to reference the image
  */
-export async function uploadImageToComfyUI(
+async function uploadImageToComfyUI(
   imagePath: string,
   imageBuffer: Buffer
 ): Promise<string> {
@@ -249,7 +249,7 @@ export async function queueComfyUIWorkflow(
 /**
  * Get ComfyUI queue status
  */
-export async function getComfyUIQueueStatus(): Promise<ComfyUIStatus> {
+async function getComfyUIQueueStatus(): Promise<ComfyUIStatus> {
   try {
     const response = await fetch(`${COMFYUI_HOST}/queue`, {
       method: 'GET',
@@ -277,7 +277,7 @@ export async function getComfyUIQueueStatus(): Promise<ComfyUIStatus> {
 /**
  * Get ComfyUI history for a specific prompt ID
  */
-export async function getComfyUIHistory(
+async function getComfyUIHistory(
   promptId: string
 ): Promise<{ [key: string]: unknown } | null> {
   try {
@@ -494,7 +494,7 @@ export async function findLatestOutputImage(
  * Find an installed upscale (ESRGAN-style) model in comfyui/models/upscale_models.
  * Used by the hires pass for crisp, pixel-space detail. Returns null if none found.
  */
-export async function getAvailableUpscaleModel(): Promise<string | null> {
+async function getAvailableUpscaleModel(): Promise<string | null> {
   if (typeof process === 'undefined' || !process.versions?.node) return null;
   try {
     const { readdir, stat } = await import('fs/promises');
@@ -525,7 +525,7 @@ export async function getAvailableUpscaleModel(): Promise<string | null> {
  * Find an installed ControlNet model in comfyui/models/controlnet, optionally
  * matching a kind (e.g. 'tile', 'canny', 'depth'). Returns null if none found.
  */
-export async function getAvailableControlNet(kind?: string): Promise<string | null> {
+async function getAvailableControlNet(kind?: string): Promise<string | null> {
   if (typeof process === 'undefined' || !process.versions?.node) return null;
   try {
     const { readdir, stat } = await import('fs/promises');
@@ -566,7 +566,7 @@ export function isFluxModel(name: string | undefined | null): boolean {
  *    its T5 encoder thrives on natural-language prose rather than tag soup.
  * Much simpler than the SD1.5 graph — no FreeU / ControlNet-tile / latent hires.
  */
-export function buildFluxWorkflow(opts: {
+function buildFluxWorkflow(opts: {
   fluxUnet: string;
   imageFilename: string | null;
   description: string;
@@ -1035,7 +1035,7 @@ export async function createComfyUIWorkflow(
 /**
  * Copy image to ComfyUI input directory
  */
-export async function prepareImageForComfyUI(
+async function prepareImageForComfyUI(
   imagePath: string
 ): Promise<string> {
   try {

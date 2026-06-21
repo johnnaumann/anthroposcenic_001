@@ -6,7 +6,7 @@ export function resolveUploadDir(cwd = process.cwd()): string {
   return isAbsolute(configured) ? configured : join(cwd, configured);
 }
 
-export function resolveTempDir(cwd = process.cwd()): string {
+function resolveTempDir(cwd = process.cwd()): string {
   const configured = process.env.TEMP_DIR || './temp';
   return isAbsolute(configured) ? configured : join(cwd, configured);
 }

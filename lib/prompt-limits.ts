@@ -12,7 +12,7 @@ export function countPromptWords(text: string): number {
   return trimmed.split(/\s+/).length;
 }
 
-export function countPromptTags(text: string): number {
+function countPromptTags(text: string): number {
   return text
     .split(',')
     .map((tag) => tag.trim())

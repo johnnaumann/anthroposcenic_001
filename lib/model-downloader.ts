@@ -103,7 +103,7 @@ function tryConstructHuggingFaceUrl(checkpoint: string): string | null {
  * Download a checkpoint model if it doesn't exist
  * Returns the file path if successful, null if failed
  */
-export async function downloadCheckpoint(
+async function downloadCheckpoint(
   checkpoint: string,
   onProgress?: (progress: number) => void
 ): Promise<string | null> {

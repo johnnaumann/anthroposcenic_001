@@ -33,7 +33,7 @@ export function imageToBase64(buffer: Buffer, mimeType: string): string {
 /**
  * Check if Ollama service is available
  */
-export async function checkOllamaAvailability(): Promise<boolean> {
+async function checkOllamaAvailability(): Promise<boolean> {
   try {
     const response = await fetch(`${OLLAMA_HOST}/api/tags`, {
       method: 'GET',

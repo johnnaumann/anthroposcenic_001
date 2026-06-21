@@ -11,7 +11,7 @@ const MIME_TYPES: Record<string, string> = {
   webp: 'image/webp',
 };
 
-export function isSafeOutputFilename(filename: string): boolean {
+function isSafeOutputFilename(filename: string): boolean {
   return (
     Boolean(filename) &&
     !filename.includes('..') &&

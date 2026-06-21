@@ -29,7 +29,7 @@ export function isArchiveFilename(filename: string): boolean {
   );
 }
 
-export function isUploadArchiveFilename(filename: string): boolean {
+function isUploadArchiveFilename(filename: string): boolean {
   return (
     UPLOAD_FILENAME_RE.test(filename) &&
     !filename.includes('..') &&
@@ -38,17 +38,17 @@ export function isUploadArchiveFilename(filename: string): boolean {
   );
 }
 
-export function uploadImageIdFromFilename(filename: string): string | null {
+function uploadImageIdFromFilename(filename: string): string | null {
   if (!isUploadArchiveFilename(filename)) return null;
   return filename.replace(/\.[^.]+$/, '');
 }
 
-export function getOutputImageUrl(filename: string, version?: number): string {
+function getOutputImageUrl(filename: string, version?: number): string {
   const base = `/api/outputs/image/${encodeURIComponent(filename)}`;
   return version != null ? `${base}?v=${version}` : base;
 }
 
-export function getUploadImageUrl(imageId: string, version?: number): string {
+function getUploadImageUrl(imageId: string, version?: number): string {
   const base = `/api/images/${encodeURIComponent(imageId)}`;
   return version != null ? `${base}?v=${version}` : base;
 }
@@ -57,7 +57,7 @@ export function getUploadImageUrl(imageId: string, version?: number): string {
 const MIN_ARCHIVE_BYTES = 10 * 1024;
 const MIN_AGE_MS = 2_000;
 
-export async function listOutputImages(): Promise<OutputImageEntry[]> {
+async function listOutputImages(): Promise<OutputImageEntry[]> {
   if (!existsSync(OUTPUT_DIR)) {
     return [];
   }
@@ -89,7 +89,7 @@ export async function listOutputImages(): Promise<OutputImageEntry[]> {
   );
 }
 
-export async function listUploadImages(): Promise<OutputImageEntry[]> {
+async function listUploadImages(): Promise<OutputImageEntry[]> {
   if (!existsSync(UPLOAD_DIR)) {
     return [];
   }
@@ -133,11 +133,11 @@ export async function listArchiveImages(): Promise<OutputImageEntry[]> {
   );
 }
 
-export function getOutputFilePath(filename: string): string {
+function getOutputFilePath(filename: string): string {
   return join(OUTPUT_DIR, filename);
 }
 
-export async function deleteOutputImage(filename: string): Promise<void> {
+async function deleteOutputImage(filename: string): Promise<void> {
   if (!isArchiveFilename(filename)) {
     throw new Error('Invalid filename');
   }
@@ -160,7 +160,7 @@ export function isUploadImageId(imageId: string): boolean {
   return UPLOAD_IMAGE_ID_RE.test(imageId);
 }
 
-export async function deleteUploadImage(imageId: string): Promise<void> {
+async function deleteUploadImage(imageId: string): Promise<void> {
   if (!isUploadImageId(imageId)) {
     throw new Error('Invalid image id');
   }
