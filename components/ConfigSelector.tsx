@@ -8,7 +8,8 @@ import { ConfigSelectorFluxPanel } from '@/components/ConfigSelectorFluxPanel';
 import { ConfigSelectorSdPanel } from '@/components/ConfigSelectorSdPanel';
 import { ConfigSelect, FieldLabel } from '@/components/ConfigSelectorFields';
 import { ComfyUIConfig } from '@/types';
-import { buildProcessConfig, formatConfigSummary, isFluxCheckpoint } from '@/lib/config-selector';
+import { buildProcessConfig, formatConfigSummary } from '@/lib/config-process';
+import { isFluxCheckpoint } from '@/lib/config-form';
 import { useConfigSelectorForm } from '@/lib/use-config-selector-form';
 
 interface ConfigSelectorProps {

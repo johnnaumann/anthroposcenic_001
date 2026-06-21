@@ -3,11 +3,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ComfyUIConfigOptions } from '@/types';
-import {
-  applyConfigDefaultsFromOptions,
-  ConfigFormValues,
-  INITIAL_CONFIG_FORM,
-} from '@/lib/config-selector';
+import { applyConfigDefaultsFromOptions } from '@/lib/config-defaults';
+import { ConfigFormValues, INITIAL_CONFIG_FORM } from '@/lib/config-form';
 
 export function useConfigSelectorForm() {
   const [configOptions, setConfigOptions] = useState<ComfyUIConfigOptions | null>(null);

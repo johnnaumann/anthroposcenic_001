@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ComfyUIConfigOptions } from '@/types';
-import { ConfigFormValues } from '@/lib/config-selector';
+import { ConfigFormValues } from '@/lib/config-form';
 import { cn } from '@/lib/utils';
 import {
   ConfigSelect,

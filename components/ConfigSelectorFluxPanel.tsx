@@ -1,7 +1,7 @@
 'use client';
 
 import { ComfyUIConfigOptions } from '@/types';
-import { ConfigFormValues, FluxQuality } from '@/lib/config-selector';
+import { ConfigFormValues, FluxQuality } from '@/lib/config-form';
 import { cn } from '@/lib/utils';
 import { FieldLabel, NumberField } from '@/components/ConfigSelectorFields';
 
