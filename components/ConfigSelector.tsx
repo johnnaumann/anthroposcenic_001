@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { HelpCircle, Loader2, ArrowRight, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContentCard, PageLoader } from '@/components/PageShell';
-import { ComfyUIConfig } from '@/types';
+import { ComfyUIConfig, ComfyUIConfigOptions } from '@/types';
 import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import { cn } from '@/lib/utils';
 
@@ -25,28 +25,6 @@ interface ConfigSelectorProps {
   description: string;
   onConfigSelected: (config: ComfyUIConfig) => void;
   disabled?: boolean;
-}
-
-interface ComfyUIConfigOptions {
-  checkpoints: string[];
-  flux?: { schnell: string | null; dev: string | null };
-  samplers: string[];
-  schedulers: string[];
-  defaults: {
-    sampler?: string;
-    scheduler?: string;
-    steps: number;
-    cfgScale: number;
-    denoiseStrength: number;
-    negativePrompt: string;
-    hiresFix?: boolean;
-    hiresFactor?: number;
-    hiresDenoise?: number;
-    controlNet?: boolean;
-    controlNetStrength?: number;
-    freeU?: boolean;
-    qualityBoost?: boolean;
-  };
 }
 
 function FieldLabel({ label, tip }: { label: string; tip: string }) {

@@ -6,33 +6,10 @@ import { queueComfyUIWorkflow, pollComfyUIJob, createComfyUIWorkflow, checkComfy
 import { startComfyUI } from '@/lib/comfyui-startup';
 import { ensureCheckpoint, isCorruptionError, checkpointExists, checkpointAppearsValid } from '@/lib/model-downloader';
 import { resolveUploadDir } from '@/lib/project-paths';
+import { findUploadImageFile } from '@/lib/upload-images';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { ComfyUIProcessRequest } from '@/types';
 import { createProgressAggregator, getSamplingPhases } from '@/lib/processing-progress';
-
-async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
-  const uploadPath = resolveUploadDir();
-  const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-  const mimeTypes: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-  };
-
-  for (const ext of extensions) {
-    const candidatePath = join(uploadPath, `${imageId}.${ext}`);
-    if (existsSync(candidatePath)) {
-      return {
-        path: candidatePath,
-        mimeType: mimeTypes[ext] || `image/${ext}`,
-      };
-    }
-  }
-
-  return null;
-}
 
 export async function POST(request: NextRequest) {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -204,7 +181,7 @@ export async function POST(request: NextRequest) {
       // Only prepare image if using img2img mode
       if (useImage && imageId) {
         // Find the image file
-        const imageFile = await findImageFile(imageId);
+        const imageFile = await findUploadImageFile(imageId);
         if (!imageFile) {
           sendStreamError(controller, 'Image not found');
           return;

@@ -1,24 +1,18 @@
 import { readdir, stat, unlink, readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveUploadDir } from '@/lib/project-paths';
+import { processUploadImageBuffer } from '@/lib/image-processing';
+import { UPLOAD_IMAGE_EXTENSIONS } from '@/lib/upload-images';
 import { ArchiveImageKind, OutputImageEntry, UploadResponse } from '@/types';
 
 export const OUTPUT_DIR = join(process.cwd(), 'comfyui', 'output');
 export const UPLOAD_DIR = resolveUploadDir();
 
-const MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || '1024', 10);
-const MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || '1024', 10);
-const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || '95', 10);
-const PNG_QUALITY = parseInt(process.env.PNG_QUALITY || '95', 10);
-
 const ARCHIVE_FILENAME_RE = /^anthroposcenic_.+\.(png|jpe?g|webp|gif)$/i;
 const UPLOAD_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(png|jpe?g|webp|gif)$/i;
 const UPLOAD_IMAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const UPLOAD_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'] as const;
 
 export function isArchiveFilename(filename: string): boolean {
   return (
@@ -57,6 +51,12 @@ function getUploadImageUrl(imageId: string, version?: number): string {
 const MIN_ARCHIVE_BYTES = 10 * 1024;
 const MIN_AGE_MS = 2_000;
 
+function sortByCreatedAtDesc(entries: OutputImageEntry[]): OutputImageEntry[] {
+  return entries.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
 async function listOutputImages(): Promise<OutputImageEntry[]> {
   if (!existsSync(OUTPUT_DIR)) {
     return [];
@@ -84,9 +84,7 @@ async function listOutputImages(): Promise<OutputImageEntry[]> {
     });
   }
 
-  return entries.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return sortByCreatedAtDesc(entries);
 }
 
 async function listUploadImages(): Promise<OutputImageEntry[]> {
@@ -117,9 +115,7 @@ async function listUploadImages(): Promise<OutputImageEntry[]> {
     });
   }
 
-  return entries.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return sortByCreatedAtDesc(entries);
 }
 
 export async function listArchiveImages(): Promise<OutputImageEntry[]> {
@@ -128,9 +124,7 @@ export async function listArchiveImages(): Promise<OutputImageEntry[]> {
     listUploadImages(),
   ]);
 
-  return [...generated, ...uploads].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return sortByCreatedAtDesc([...generated, ...uploads]);
 }
 
 function getOutputFilePath(filename: string): string {
@@ -166,7 +160,7 @@ async function deleteUploadImage(imageId: string): Promise<void> {
   }
 
   let deleted = false;
-  for (const ext of UPLOAD_EXTENSIONS) {
+  for (const ext of UPLOAD_IMAGE_EXTENSIONS) {
     const filePath = join(UPLOAD_DIR, `${imageId}.${ext}`);
     if (!existsSync(filePath)) continue;
     await unlink(filePath);
@@ -206,35 +200,9 @@ export async function adoptOutputImage(filename: string): Promise<UploadResponse
 
   const inputBuffer = await readFile(sourcePath);
   const imageId = uuidv4();
-  const image = sharp(inputBuffer);
-  const metadata = await image.metadata();
-  const hasTransparency = metadata.hasAlpha && filename.toLowerCase().endsWith('.png');
-
-  let processedBuffer: Buffer;
-  let outputMimeType: string;
-  let outputExtension: string;
-
-  if (hasTransparency) {
-    outputMimeType = 'image/png';
-    outputExtension = 'png';
-    processedBuffer = await image
-      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .png({ quality: PNG_QUALITY, compressionLevel: 9 })
-      .toBuffer();
-  } else {
-    outputMimeType = 'image/jpeg';
-    outputExtension = 'jpg';
-    processedBuffer = await image
-      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
-      .toBuffer();
-  }
+  const preferPng = filename.toLowerCase().endsWith('.png');
+  const { buffer: processedBuffer, mimeType: outputMimeType, extension: outputExtension } =
+    await processUploadImageBuffer(inputBuffer, preferPng);
 
   const destPath = join(uploadPath, `${imageId}.${outputExtension}`);
   await writeFile(destPath, processedBuffer);

@@ -7,7 +7,7 @@ import type { ComfyUIProgressUpdate } from '@/types';
 
 const COMFYUI_WS_URL = process.env.COMFYUI_WS_URL || 'ws://localhost:8188/ws';
 
-export interface ComfyUIWebSocketMessage {
+interface ComfyUIWebSocketMessage {
   type: string;
   data?: {
     value?: number;

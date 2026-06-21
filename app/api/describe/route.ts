@@ -1,36 +1,10 @@
 import { NextRequest } from 'next/server';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 import { streamOllamaResponse, imageToBase64 } from '@/lib/ollama';
-import { resolveUploadDir } from '@/lib/project-paths';
+import { findUploadImageFile } from '@/lib/upload-images';
 import { truncatePromptAtLimit } from '@/lib/prompt-limits';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
 import { DescribeRequest } from '@/types';
-
-async function findImageFile(imageId: string): Promise<{ path: string; mimeType: string } | null> {
-  const uploadPath = resolveUploadDir();
-  const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-  const mimeTypes: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-  };
-
-  for (const ext of extensions) {
-    const candidatePath = join(uploadPath, `${imageId}.${ext}`);
-    if (existsSync(candidatePath)) {
-      return {
-        path: candidatePath,
-        mimeType: mimeTypes[ext] || `image/${ext}`,
-      };
-    }
-  }
-
-  return null;
-}
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -67,7 +41,7 @@ export async function POST(request: NextRequest) {
       // Read every source image to base64.
       const imagesBase64: string[] = [];
       for (const id of sourceIds) {
-        const imageFile = await findImageFile(id);
+        const imageFile = await findUploadImageFile(id);
         if (!imageFile) {
           if (controller) {
             sendStreamError(controller, 'Image not found');

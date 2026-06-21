@@ -48,6 +48,22 @@ export interface ComfyUIConfig {
   qualityBoost?: boolean;
 }
 
+export type ComfyUIConfigDefaults = Omit<
+  ComfyUIConfig,
+  'description' | 'checkpoint' | 'sampler' | 'scheduler'
+> & {
+  sampler?: string;
+  scheduler?: string;
+};
+
+export interface ComfyUIConfigOptions {
+  checkpoints: string[];
+  flux?: { schnell: string | null; dev: string | null };
+  samplers: string[];
+  schedulers: string[];
+  defaults: ComfyUIConfigDefaults;
+}
+
 export interface ComfyUIProcessRequest {
   imageId?: string;
   config: ComfyUIConfig;

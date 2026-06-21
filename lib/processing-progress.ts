@@ -6,7 +6,7 @@ export interface ProcessingPhase {
   weight: number;
 }
 
-export interface ProcessingProgressSnapshot {
+interface ProcessingProgressSnapshot {
   overall: number;
   phaseLabel: string;
   phaseIndex: number;

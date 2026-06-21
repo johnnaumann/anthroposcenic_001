@@ -1,6 +1,6 @@
 import { ComfyUIConfig } from '@/types';
 
-export type ProcessStreamEvent =
+type ProcessStreamEvent =
   | { type: 'status'; data: string }
   | { type: 'meta'; data: { promptId: string; jobStartTime: number } }
   | { type: 'progress'; data: unknown }
