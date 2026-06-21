@@ -122,28 +122,28 @@ export function ConfigSelectorSdPanel({
               <ConfigToggle
                 id="hiresFix"
                 label="Hi-res pass"
-                checked={values.hiresFix}
+                checked={values.hiresFix ?? false}
                 onChange={(value) => onFieldChange('hiresFix', value)}
                 disabled={disabled}
               />
               <ConfigToggle
                 id="controlNet"
                 label="ControlNet Tile"
-                checked={values.controlNet}
+                checked={values.controlNet ?? false}
                 onChange={(value) => onFieldChange('controlNet', value)}
-                disabled={disabled || !values.hiresFix}
+                disabled={disabled || !(values.hiresFix ?? false)}
               />
               <ConfigToggle
                 id="freeU"
                 label="FreeU"
-                checked={values.freeU}
+                checked={values.freeU ?? false}
                 onChange={(value) => onFieldChange('freeU', value)}
                 disabled={disabled}
               />
               <ConfigToggle
                 id="qualityBoost"
                 label="Quality tags"
-                checked={values.qualityBoost}
+                checked={values.qualityBoost ?? false}
                 onChange={(value) => onFieldChange('qualityBoost', value)}
                 disabled={disabled}
               />
@@ -158,7 +158,7 @@ export function ConfigSelectorSdPanel({
                   min={1}
                   max={4}
                   step={0.25}
-                  disabled={disabled || !values.hiresFix}
+                  disabled={disabled || !(values.hiresFix ?? false)}
                 />
               </div>
               <div className="space-y-1.5">
@@ -170,7 +170,7 @@ export function ConfigSelectorSdPanel({
                   min={0}
                   max={1}
                   step={0.05}
-                  disabled={disabled || !values.hiresFix}
+                  disabled={disabled || !(values.hiresFix ?? false)}
                 />
               </div>
               <div className="space-y-1.5">
@@ -187,7 +187,9 @@ export function ConfigSelectorSdPanel({
                   min={0}
                   max={2}
                   step={0.05}
-                  disabled={disabled || !values.hiresFix || !values.controlNet}
+                  disabled={
+                    disabled || !(values.hiresFix ?? false) || !(values.controlNet ?? false)
+                  }
                 />
               </div>
             </div>
