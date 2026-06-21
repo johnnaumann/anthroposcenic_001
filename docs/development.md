@@ -141,7 +141,7 @@ Shared request/response shapes live in `types/index.ts`. Import from `@/types` i
 - Tailwind CSS v4 — `app/globals.css` (theme tokens); base styles on `app/layout.tsx`
 - ShadCN v4 / Radix Nova in `components/ui/`
 - Geist Sans + Mono via `geist`
-- Grayscale-only palette (see `.cursor/rules/monotone-design.mdc`)
+- Grayscale-only palette (no accent colours)
 - Dark mode default; toasts via Sonner
 
 ## Common tasks

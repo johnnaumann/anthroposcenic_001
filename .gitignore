@@ -50,7 +50,6 @@ temp/
 /comfyui_*
 **/comfyui/output/**
 
-# Cursor IDE (commit project rules under .cursor/rules/)
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
+# Local-only tooling (not shared via repo)
+.cursor/
+.fallowrc.json
