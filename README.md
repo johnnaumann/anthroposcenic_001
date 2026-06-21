@@ -19,7 +19,7 @@ flowchart TB
     subgraph app["Next.js :3000"]
         UI[App Router pages]
         API[Thin route handlers]
-        LIB[lib/ business logic]
+        LIB[lib/ pipeline]
     end
 
     subgraph ollama["Ollama :11434"]

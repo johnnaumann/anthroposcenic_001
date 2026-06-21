@@ -53,7 +53,7 @@ Re-exports and `clearPipelineState()` live in `lib/pipeline-storage.ts`.
 
 ## Code layout
 
-Route handlers under `app/api/` are **thin**: they create an SSE `ReadableStream` and delegate to `lib/*`. Business logic, streaming, and service integration live in `lib/`.
+Route handlers under `app/api/` are **thin**: they create an SSE `ReadableStream` and delegate to `lib/*`. Pipeline logic, streaming, and service integration live in `lib/`.
 
 ```mermaid
 flowchart LR
@@ -62,7 +62,7 @@ flowchart LR
         PR["comfyui/process/route.ts"]
     end
 
-    subgraph lib["lib (logic)"]
+    subgraph lib["lib (pipeline)"]
         DRL["describe-route.ts"]
         PRL["comfyui-process-route.ts"]
         OLL["ollama.ts + ollama-stream.ts"]

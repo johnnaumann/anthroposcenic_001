@@ -124,7 +124,7 @@ void runDescribeStream(request, controller);
 return new Response(stream, { headers: DESCRIBE_SSE_HEADERS });
 ```
 
-Add new logic in `lib/`, not in `route.ts`, unless the change is purely HTTP wiring.
+Add pipeline code in `lib/`, not in `route.ts`, unless the change is purely HTTP wiring.
 
 ### Streaming
 
