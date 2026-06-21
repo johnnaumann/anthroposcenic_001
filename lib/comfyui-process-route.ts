@@ -3,11 +3,11 @@ import { join } from 'path';
 import { NextRequest } from 'next/server';
 import {
   queueComfyUIWorkflow,
-  pollComfyUIJob,
   createComfyUIWorkflow,
   isFluxModel,
   findLatestOutputImage,
 } from '@/lib/comfyui';
+import { pollComfyUIJob } from '@/lib/comfyui-poll';
 import { startComfyUI } from '@/lib/comfyui-startup';
 import {
   ensureCheckpoint,
