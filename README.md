@@ -1,4 +1,4 @@
-# Anthroposcenic
+# Anthroposcenic_001
 
 Local image pipeline: upload an image, generate a prompt with Ollama, configure ComfyUI settings, and render a reinterpretation.
 
