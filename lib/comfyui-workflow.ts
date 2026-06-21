@@ -1,10 +1,8 @@
 import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
 import {
   buildSdWorkflow,
-  getAvailableCheckpoints,
-  getAvailableControlNet,
-  getAvailableUpscaleModel,
-  getValidSampler,
+  prepareSdWorkflowBuildParams,
+  SdWorkflowOptions,
 } from '@/lib/comfyui-workflow-sd';
 import { ComfyUIWorkflow } from '@/lib/comfyui-workflow-types';
 
@@ -143,31 +141,7 @@ function buildFluxWorkflow(opts: {
 export async function createComfyUIWorkflow(
   imageFilename: string | null,
   description: string,
-  options: {
-    checkpoint?: string;
-    seed?: number;
-    steps?: number;
-    cfgScale?: number;
-    denoiseStrength?: number;
-    sampler?: string;
-    scheduler?: string;
-    maxWidth?: number;
-    maxHeight?: number;
-    useImageResize?: boolean;
-    negativePrompt?: string;
-    useImage?: boolean;
-    width?: number;
-    height?: number;
-    qualityBoost?: boolean;
-    hiresFix?: boolean;
-    hiresFactor?: number;
-    hiresDenoise?: number;
-    upscaleModel?: string;
-    freeU?: boolean;
-    controlNet?: boolean;
-    controlNetModel?: string;
-    controlNetStrength?: number;
-  } = {}
+  options: SdWorkflowOptions = {}
 ): Promise<ComfyUIWorkflow> {
   const {
     checkpoint: providedCheckpoint = '',
@@ -200,64 +174,18 @@ export async function createComfyUIWorkflow(
     });
   }
 
-  let checkpoint = providedCheckpoint;
-  if (!checkpoint) {
-    const availableCheckpoints = await getAvailableCheckpoints();
-    if (availableCheckpoints.length === 0) {
-      throw new Error(
-        'No checkpoint models available. Please install a Stable Diffusion checkpoint to comfyui/models/checkpoints/'
-      );
-    }
-    checkpoint = availableCheckpoints[0];
-    console.log(`Using checkpoint: ${checkpoint}`);
-  }
-
-  const sampler = await getValidSampler(requestedSampler);
-  const useImage = options.useImage !== false && imageFilename !== null;
-  const txt2imgWidth = options.width || maxWidth;
-  const txt2imgHeight = options.height || maxHeight;
-  const qualityBoost = options.qualityBoost !== false;
-  const freeU = options.freeU !== false;
-  const useHires = options.hiresFix !== false;
-  const hiresFactor = options.hiresFactor ?? 1.5;
-  const hiresSteps = Math.max(14, Math.round(steps * 0.55));
-  const upscaleModel = options.upscaleModel ?? (useHires ? await getAvailableUpscaleModel() : null);
-  const controlNetEnabled = options.controlNet !== false;
-  const tileModel =
-    controlNetEnabled && useHires
-      ? (options.controlNetModel ?? (await getAvailableControlNet('tile')))
-      : null;
-  const useTileRefine = !!(tileModel && upscaleModel);
-  const controlNetStrength = options.controlNetStrength ?? 0.65;
-  const hiresDenoise =
-    options.hiresDenoise ?? (useTileRefine ? 0.55 : upscaleModel ? 0.4 : 0.5);
-
-  return buildSdWorkflow({
-    checkpoint,
-    imageFilename,
-    description,
-    seed,
-    steps,
-    cfgScale,
-    denoiseStrength,
-    sampler,
-    scheduler,
-    negativePrompt,
-    maxWidth,
-    maxHeight,
-    useImageResize,
-    useImage,
-    txt2imgWidth,
-    txt2imgHeight,
-    qualityBoost,
-    freeU,
-    useHires,
-    hiresFactor,
-    hiresSteps,
-    hiresDenoise,
-    upscaleModel,
-    useTileRefine,
-    tileModel,
-    controlNetStrength,
-  });
+  return buildSdWorkflow(
+    await prepareSdWorkflowBuildParams(imageFilename, description, options, {
+      negativePrompt,
+      seed,
+      maxWidth,
+      maxHeight,
+      useImageResize,
+      steps,
+      cfgScale,
+      denoiseStrength,
+      requestedSampler,
+      scheduler,
+    })
+  );
 }

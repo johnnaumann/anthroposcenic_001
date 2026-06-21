@@ -1,16 +1,10 @@
 import { ComfyUIConfigOptions } from '@/types';
 import { ConfigFormValues, isFluxCheckpoint } from '@/lib/config-form';
 
-export function applyConfigDefaultsFromOptions(
+function applyModelSelectionDefaults(
+  next: Partial<ConfigFormValues>,
   data: ComfyUIConfigOptions
-): Partial<ConfigFormValues> {
-  const next: Partial<ConfigFormValues> = {
-    steps: data.defaults.steps,
-    cfgScale: data.defaults.cfgScale,
-    denoiseStrength: data.defaults.denoiseStrength,
-    negativePrompt: data.defaults.negativePrompt,
-  };
-
+): void {
   if (data.checkpoints.length > 0) {
     const flux = data.checkpoints.find(isFluxCheckpoint);
     const dream = data.checkpoints.find((cp) => cp.includes('DreamShaper'));
@@ -26,8 +20,12 @@ export function applyConfigDefaultsFromOptions(
   next.scheduler = data.schedulers?.includes(preferredScheduler)
     ? preferredScheduler
     : data.schedulers?.[0] || 'normal';
+}
 
-  const defaults = data.defaults || {};
+function applyFeatureToggleDefaults(
+  next: Partial<ConfigFormValues>,
+  defaults: ComfyUIConfigOptions['defaults']
+): void {
   if (typeof defaults.hiresFix === 'boolean') next.hiresFix = defaults.hiresFix;
   if (typeof defaults.hiresFactor === 'number') next.hiresFactor = defaults.hiresFactor;
   if (typeof defaults.hiresDenoise === 'number') next.hiresDenoise = defaults.hiresDenoise;
@@ -37,6 +35,20 @@ export function applyConfigDefaultsFromOptions(
   }
   if (typeof defaults.freeU === 'boolean') next.freeU = defaults.freeU;
   if (typeof defaults.qualityBoost === 'boolean') next.qualityBoost = defaults.qualityBoost;
+}
+
+export function applyConfigDefaultsFromOptions(
+  data: ComfyUIConfigOptions
+): Partial<ConfigFormValues> {
+  const next: Partial<ConfigFormValues> = {
+    steps: data.defaults.steps,
+    cfgScale: data.defaults.cfgScale,
+    denoiseStrength: data.defaults.denoiseStrength,
+    negativePrompt: data.defaults.negativePrompt,
+  };
+
+  applyModelSelectionDefaults(next, data);
+  applyFeatureToggleDefaults(next, data.defaults || {});
 
   return next;
 }

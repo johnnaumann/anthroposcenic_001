@@ -99,6 +99,101 @@ function tryConstructHuggingFaceUrl(checkpoint: string): string | null {
   return patterns[0];
 }
 
+function resolveCheckpointDownloadUrl(checkpoint: string): string | null {
+  const registryUrl = MODEL_REGISTRY[checkpoint];
+  if (registryUrl) {
+    return registryUrl;
+  }
+
+  console.log(`[ModelDownloader] Model not in registry, attempting to construct Hugging Face URL for: ${checkpoint}`);
+  const constructedUrl = tryConstructHuggingFaceUrl(checkpoint);
+  if (constructedUrl) {
+    console.log(`[ModelDownloader] Attempting constructed URL: ${constructedUrl}`);
+    return constructedUrl;
+  }
+
+  console.error(`[ModelDownloader] ❌ No download URL found for checkpoint: ${checkpoint}`);
+  console.error(`[ModelDownloader] Available models in registry: ${Object.keys(MODEL_REGISTRY).join(', ')}`);
+  console.error(`[ModelDownloader] 💡 To add this model, either:`);
+  console.error(`[ModelDownloader]    1. Download it manually to: ${CHECKPOINTS_DIR}`);
+  console.error(`[ModelDownloader]    2. Add it to MODEL_REGISTRY in lib/model-downloader.ts`);
+  return null;
+}
+
+async function writeCheckpointFromResponse(
+  response: Response,
+  filePath: string,
+  checkpoint: string,
+  onProgress?: (progress: number) => void
+): Promise<void> {
+  if (!response.body) {
+    throw new Error('No response body');
+  }
+
+  const contentLength = response.headers.get('content-length');
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+  let downloadedBytes = 0;
+
+  if (totalBytes > 0) {
+    const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
+    console.log(`[ModelDownloader] 📊 File size: ${sizeMB} MB`);
+  } else {
+    console.log(`[ModelDownloader] 📊 File size: Unknown (streaming)`);
+  }
+
+  const fileStream = createWriteStream(filePath);
+  const reader = response.body.getReader();
+  let lastProgressLog = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      fileStream.write(value);
+      downloadedBytes += value.length;
+
+      if (onProgress && totalBytes > 0) {
+        const progress = (downloadedBytes / totalBytes) * 100;
+        onProgress(progress);
+
+        if (Math.floor(progress / 10) > lastProgressLog) {
+          lastProgressLog = Math.floor(progress / 10);
+          const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(2);
+          console.log(`[ModelDownloader] ⬇️  Download progress: ${Math.round(progress)}% (${downloadedMB} MB)`);
+        }
+      } else if (onProgress) {
+        onProgress(downloadedBytes);
+      }
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      fileStream.end((err: Error | null | undefined) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    console.log(`[ModelDownloader] ✅ Successfully downloaded: ${checkpoint}`);
+  } catch (streamError) {
+    fileStream.destroy();
+    if (streamError instanceof Error && streamError.name === 'AbortError') {
+      throw new Error('Download timeout - file is too large or connection is slow');
+    }
+    throw streamError;
+  }
+}
+
+async function removePartialCheckpoint(filePath: string): Promise<void> {
+  try {
+    const { unlink } = await import('fs/promises');
+    if (existsSync(filePath)) {
+      await unlink(filePath);
+    }
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
 /**
  * Download a checkpoint model if it doesn't exist
  * Returns the file path if successful, null if failed
@@ -108,143 +203,52 @@ async function downloadCheckpoint(
   onProgress?: (progress: number) => void
 ): Promise<string | null> {
   const filePath = join(CHECKPOINTS_DIR, checkpoint);
-  
-  // Check if already exists
+
   if (existsSync(filePath)) {
     console.log(`[ModelDownloader] ✅ Checkpoint already exists: ${checkpoint}`);
     return filePath;
   }
 
-  // Check if we have a download URL for this model
-  let downloadUrl: string | null = MODEL_REGISTRY[checkpoint] ?? null;
-  
-  // If not in registry, try to construct a Hugging Face URL
+  const downloadUrl = resolveCheckpointDownloadUrl(checkpoint);
   if (!downloadUrl) {
-    console.log(`[ModelDownloader] Model not in registry, attempting to construct Hugging Face URL for: ${checkpoint}`);
-    downloadUrl = tryConstructHuggingFaceUrl(checkpoint);
-    
-    if (!downloadUrl) {
-      console.error(`[ModelDownloader] ❌ No download URL found for checkpoint: ${checkpoint}`);
-      console.error(`[ModelDownloader] Available models in registry: ${Object.keys(MODEL_REGISTRY).join(', ')}`);
-      console.error(`[ModelDownloader] 💡 To add this model, either:`);
-      console.error(`[ModelDownloader]    1. Download it manually to: ${CHECKPOINTS_DIR}`);
-      console.error(`[ModelDownloader]    2. Add it to MODEL_REGISTRY in lib/model-downloader.ts`);
-      return null;
-    }
-    
-    console.log(`[ModelDownloader] Attempting constructed URL: ${downloadUrl}`);
+    return null;
   }
 
   try {
     console.log(`[ModelDownloader] 📥 Starting download: ${checkpoint}`);
     console.log(`[ModelDownloader] 🔗 URL: ${downloadUrl}`);
-    
-    // Ensure directory exists
+
     const { mkdir } = await import('fs/promises');
     await mkdir(CHECKPOINTS_DIR, { recursive: true });
 
-    // Download the file with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout for large files
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
 
     try {
       console.log(`[ModelDownloader] ⏳ Fetching from URL...`);
-      const response = await fetch(downloadUrl, {
-        signal: controller.signal,
-      });
+      const response = await fetch(downloadUrl, { signal: controller.signal });
 
       if (!response.ok) {
-        // If constructed URL failed, provide helpful error
         if (!MODEL_REGISTRY[checkpoint]) {
           console.error(`[ModelDownloader] ❌ Constructed URL failed (${response.status} ${response.statusText})`);
           console.error(`[ModelDownloader] 💡 This model may not be available at the guessed URL.`);
           console.error(`[ModelDownloader] 💡 Please download manually from Hugging Face or Civitai to: ${CHECKPOINTS_DIR}`);
-          throw new Error(`Model not found at constructed URL. Please download manually.`);
+          throw new Error('Model not found at constructed URL. Please download manually.');
         }
         throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
       }
-      
+
       console.log(`[ModelDownloader] ✅ Connection established, starting download...`);
-
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      const contentLength = response.headers.get('content-length');
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-      let downloadedBytes = 0;
-      
-      if (totalBytes > 0) {
-        const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
-        console.log(`[ModelDownloader] 📊 File size: ${sizeMB} MB`);
-      } else {
-        console.log(`[ModelDownloader] 📊 File size: Unknown (streaming)`);
-      }
-
-      const fileStream = createWriteStream(filePath);
-      const reader = response.body.getReader();
-      
-      let lastProgressLog = 0;
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          fileStream.write(value);
-          downloadedBytes += value.length;
-
-          if (onProgress && totalBytes > 0) {
-            const progress = (downloadedBytes / totalBytes) * 100;
-            onProgress(progress);
-            
-            // Log progress every 10%
-            if (Math.floor(progress / 10) > lastProgressLog) {
-              lastProgressLog = Math.floor(progress / 10);
-              const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(2);
-              console.log(`[ModelDownloader] ⬇️  Download progress: ${Math.round(progress)}% (${downloadedMB} MB)`);
-            }
-          } else if (onProgress) {
-            // If we don't know total size, just report bytes downloaded
-            const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(2);
-            onProgress(downloadedBytes); // Pass bytes instead of percentage
-          }
-        }
-
-        // Close the file stream properly
-        await new Promise<void>((resolve, reject) => {
-          fileStream.end((err: Error | null | undefined) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-        clearTimeout(timeoutId);
-        console.log(`[ModelDownloader] ✅ Successfully downloaded: ${checkpoint}`);
-        return filePath;
-      } catch (streamError) {
-        clearTimeout(timeoutId);
-        // Close file stream on error
-        fileStream.destroy();
-        if (streamError instanceof Error && streamError.name === 'AbortError') {
-          throw new Error('Download timeout - file is too large or connection is slow');
-        }
-        throw streamError;
-      }
+      await writeCheckpointFromResponse(response, filePath, checkpoint, onProgress);
+      clearTimeout(timeoutId);
+      return filePath;
     } catch (fetchError) {
       clearTimeout(timeoutId);
       throw fetchError;
     }
   } catch (error) {
     console.error(`[ModelDownloader] ❌ Failed to download ${checkpoint}:`, error);
-    // Clean up partial file
-    try {
-      const { unlink } = await import('fs/promises');
-      if (existsSync(filePath)) {
-        await unlink(filePath);
-      }
-    } catch {
-      // Ignore cleanup errors
-    }
+    await removePartialCheckpoint(filePath);
     return null;
   }
 }
