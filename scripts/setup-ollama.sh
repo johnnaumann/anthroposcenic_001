@@ -75,12 +75,12 @@ else
         fi
     done
     
-    if echo "$MODELS" | grep -q "anthroposcenic-describe"; then
+    if echo "$MODELS" | grep -q "llava:7b"; then
         echo ""
-        echo "✅ Describe model is installed"
+        echo "Describe model (llava:7b) is installed"
     else
         echo ""
-        echo "💡 Build the describe model with:"
+        echo "Pull the describe model with:"
         echo "   npm run setup:ollama"
     fi
 fi

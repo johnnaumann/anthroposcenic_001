@@ -59,7 +59,7 @@ function assertOllamaStreamProducedTokens(hasReceivedData: boolean, tokenCount: 
   if (tokenCount === 0) {
     console.error('[Ollama] Stream completed but no tokens were yielded.');
     throw new Error(
-      'Ollama stream completed but returned no tokens. The model may not be responding correctly. Try recreating the model: npm run setup:ollama'
+      'Ollama stream completed but returned no tokens. The model may not be responding correctly. Try: npm run setup:ollama'
     );
   }
 }

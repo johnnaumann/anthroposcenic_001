@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "setup": "npm run setup:ollama && npm run setup:comfyui",
-    "setup:ollama": "bash scripts/create-ollama-modelfile.sh",
+    "setup:ollama": "bash scripts/pull-ollama-model.sh",
     "setup:comfyui": "bash scripts/setup-comfyui.sh && bash scripts/download-flux.sh",
     "comfyui:run": "bash scripts/run-comfyui.sh",
     "comfyui:sd": "bash scripts/download-all-models.sh && bash scripts/download-upscale-model.sh && bash scripts/download-controlnet-tile.sh"

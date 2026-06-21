@@ -8,7 +8,7 @@ Local image pipeline: upload an image, generate a prompt with Ollama, configure 
 |-------|------------|------|
 | App | Next.js 14 (App Router), React 18, TypeScript | 3000 |
 | UI | Tailwind CSS v4, ShadCN v4 (Radix Nova), Geist, Sonner | — |
-| Vision / prompts | Ollama — `anthroposcenic-describe:latest` (default) | 11434 |
+| Vision / prompts | Ollama — `llava:7b` (default) | 11434 |
 | Image generation | ComfyUI — Flux GGUF (default) or SD checkpoints | 8188 |
 | Progress | ComfyUI WebSocket + HTTP poll; SSE to browser | — |
 | Images | Sharp (upload resize), `next/image` | — |
@@ -18,11 +18,12 @@ Local image pipeline: upload an image, generate a prompt with Ollama, configure 
 flowchart TB
     subgraph app["Next.js :3000"]
         UI[App Router pages]
-        API[Route handlers]
+        API[Thin route handlers]
+        LIB[lib/ business logic]
     end
 
     subgraph ollama["Ollama :11434"]
-        VM[anthroposcenic-describe]
+        VM[llava:7b]
     end
 
     subgraph comfy["ComfyUI :8188"]
@@ -33,26 +34,30 @@ flowchart TB
     UP[(uploads/)]
 
     UI --> API
-    API -->|SSE describe| VM
-    API -->|WS + SSE process| WF
-    API --> UP
+    API --> LIB
+    LIB -->|SSE describe| VM
+    LIB -->|WS + SSE process| WF
+    LIB --> UP
     WF --> OUT
-    API --> OUT
+    LIB --> OUT
 
     style app fill:#404040,stroke:#262626,color:#ffffff
     style ollama fill:#525252,stroke:#404040,color:#ffffff
     style comfy fill:#737373,stroke:#525252,color:#ffffff
     style UI fill:#262626,stroke:#0a0a0a,color:#ffffff
     style API fill:#262626,stroke:#0a0a0a,color:#ffffff
+    style LIB fill:#262626,stroke:#0a0a0a,color:#ffffff
     style VM fill:#262626,stroke:#0a0a0a,color:#ffffff
     style WF fill:#262626,stroke:#0a0a0a,color:#ffffff
     style UP fill:#262626,stroke:#0a0a0a,color:#ffffff
     style OUT fill:#262626,stroke:#0a0a0a,color:#ffffff
 ```
 
-**UI flow:** `/` → `/upload` → `/describe` → `/configure` → `/process` → `/complete` · `/archive` for past renders
+**UI flow:** `/` → `/upload` → `/describe` → `/configure` → `/process` → `/complete` · `/archive` for past renders and blend
 
 `npm run dev` starts **Ollama + Next.js only**. ComfyUI starts on demand when processing.
+
+API routes under `app/api/` delegate to `lib/` (see [docs/development.md](docs/development.md)).
 
 ## Quick setup
 
@@ -75,7 +80,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 ```bash
-npm run setup    # describe model + ComfyUI + Flux
+npm run setup    # pull llava:7b + ComfyUI + Flux
 ```
 
 Optional Stable Diffusion stack:
@@ -102,14 +107,14 @@ Optional: `.env.local` — see [docs/configuration.md](docs/configuration.md).
 
 | Document | Contents |
 |----------|----------|
-| [architecture.md](docs/architecture.md) | Pipeline, routes, streaming, storage |
-| [models.md](docs/models.md) | Ollama and ComfyUI model setup |
-| [configuration.md](docs/configuration.md) | Environment variables |
-| [api.md](docs/api.md) | HTTP API routes |
+| [architecture.md](docs/architecture.md) | Pipeline, routes, code layout, streaming, storage |
+| [development.md](docs/development.md) | Full `lib/` module map and conventions |
+| [models.md](docs/models.md) | Ollama vision model, ComfyUI model setup |
+| [configuration.md](docs/configuration.md) | Environment variables, config files |
+| [api.md](docs/api.md) | HTTP routes and SSE shapes |
 | [scripts.md](docs/scripts.md) | `npm run` reference |
-| [development.md](docs/development.md) | Project layout and key modules |
 | [troubleshooting.md](docs/troubleshooting.md) | Common failures |
-| [testing.md](docs/testing.md) | Manual test checklist |
+| [testing.md](docs/testing.md) | Manual test checklist (single + blend) |
 
 ## License
 

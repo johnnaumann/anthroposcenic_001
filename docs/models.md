@@ -2,17 +2,41 @@
 
 ## Ollama (describe step)
 
-**Runtime default:** `anthroposcenic-describe:latest` (from `config/models.json`).
+**Runtime default:** `llava:7b` (`config/models.json`, overridable via `OLLAMA_MODEL`).
+
+There is no custom `anthroposcenic-describe` wrapper. The app calls Ollama directly with the vision model and sends the full art-critic prompt as the user message.
+
+### Setup
 
 ```bash
 npm run setup:ollama
 ```
 
-Reads `config/ollama-modelfile`, pulls `llava:7b` if missing (`FROM llava:7b`), and creates `anthroposcenic-describe:latest`.
+Pulls `llava:7b` if not already installed. Or as part of full setup:
 
-Override at runtime: `OLLAMA_MODEL` in `.env.local` or `model` in the describe request body.
+```bash
+npm run setup    # llava:7b + ComfyUI + Flux
+```
 
-The modelfile `SYSTEM` block is intentionally minimal (vision assistant, follow user instructions). The art-critic prompt format lives in `lib/describe-route.ts` (`buildDescribePrompt`) and is sent as the user message on each describe request. Recreate the model after modelfile edits (`npm run setup:ollama`).
+### Prompt ownership
+
+All describe instructions live in the app:
+
+| Layer | File | Role |
+|-------|------|------|
+| Output format | `lib/describe-route.ts` | `buildDescribePrompt()` — art-critic prose + style tags |
+| Length cap | `lib/prompt-limits.ts` | ~220 words / 80 tags |
+
+Change describe wording in `buildDescribePrompt()`. No modelfile to maintain.
+
+### Overrides
+
+| Method | Example |
+|--------|---------|
+| Environment | `OLLAMA_MODEL=qwen3-vl:8b` in `.env.local` |
+| API body | `{ "imageId": "…", "model": "qwen3-vl:8b" }` |
+
+Alternate vision models are listed in `config/models.json` under `ollama.vision`. The UI does not expose a model picker by default.
 
 Health check: `bash scripts/check-ollama.sh`
 
@@ -24,19 +48,13 @@ Health check: `bash scripts/check-ollama.sh`
 npm run setup:comfyui
 ```
 
-Or full first-time setup:
-
-```bash
-npm run setup
-```
-
 Installs ComfyUI venv plus:
 
 - `custom_nodes/ComfyUI-GGUF`
 - `models/unet/flux1-dev-Q4_K_S.gguf` and `flux1-schnell-Q4_K_S.gguf`
 - Flux CLIP + T5 encoders and VAE
 
-UI labels: **Fast** (schnell) / **Slow** (dev).
+UI labels: **Fast** (schnell) / **Slow** (dev). Workflows: `lib/comfyui-workflow.ts`.
 
 ### Stable Diffusion (optional)
 
@@ -46,7 +64,9 @@ npm run comfyui:sd
 
 Downloads SD checkpoints, upscale model (hi-res pass), and ControlNet Tile. You can also place `.safetensors` manually in `comfyui/models/checkpoints/`.
 
-SD checkpoints can auto-download via `lib/model-downloader.ts` when the process route requests a missing file. Flux GGUF is not auto-downloaded through that path — use `npm run setup:comfyui`.
+SD workflows: `lib/comfyui-workflow-sd.ts`, hi-res: `lib/comfyui-workflow-sd-hires.ts`.
+
+SD checkpoints can auto-download via `lib/model-downloader.ts` when the process route requests a missing file. Flux GGUF is **not** auto-downloaded through that path — use `npm run setup:comfyui`.
 
 ### Samplers
 
@@ -73,4 +93,4 @@ Listed in configure when present in `checkpoints/`:
 | `waifu-diffusion.safetensors` | Anime-influenced |
 | `epic-diffusion.safetensors` | General merge |
 
-Registry: `lib/model-downloader.ts`.
+Download URLs: `lib/model-downloader.ts`.

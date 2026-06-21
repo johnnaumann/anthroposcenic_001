@@ -57,7 +57,7 @@ async function verifyOllamaModel(model: string): Promise<void> {
       console.warn(
         `[Ollama] Model "${model}" not found in available models. Available: ${modelNames.slice(0, 5).join(', ')}...`
       );
-      console.warn('[Ollama] You may need to create the model: npm run setup:ollama');
+      console.warn('[Ollama] You may need to pull the model: npm run setup:ollama');
       return;
     }
     console.log(`[Ollama] Model "${model}" found in available models`);

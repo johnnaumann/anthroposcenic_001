@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { readFile } from 'fs/promises';
 import { streamOllamaResponse, imageToBase64 } from '@/lib/ollama';
+import { getDefaultOllamaModel } from '@/lib/models';
 import { findUploadImageFile } from '@/lib/upload-images';
 import { truncatePromptAtLimit } from '@/lib/prompt-limits';
 import { sendStreamMessage, sendStreamError, closeStream } from '@/lib/streaming';
@@ -60,7 +61,7 @@ function resolveDescribeModel(model?: string): string {
   if (model && model !== 'default') {
     return model;
   }
-  return process.env.OLLAMA_MODEL || 'anthroposcenic-describe:latest';
+  return process.env.OLLAMA_MODEL || getDefaultOllamaModel();
 }
 
 function buildDescribePrompt(isBlend: boolean): string {

@@ -13,7 +13,7 @@ Local image pipeline: upload → Ollama describe → configure ComfyUI → rende
 |-------|------------|
 | App | Next.js 14 App Router, React 18, TypeScript |
 | UI | Tailwind CSS v4, ShadCN v4 (Radix Nova), Geist, Sonner |
-| Vision | Ollama — `anthroposcenic-describe:latest` (from `llava:7b`) |
+| Vision | Ollama — `llava:7b` default (`config/models.json`) |
 | Generation | ComfyUI — Flux GGUF default, SD checkpoints optional |
 | Progress | ComfyUI WebSocket + HTTP poll; SSE to browser |
 
@@ -23,16 +23,20 @@ Local image pipeline: upload → Ollama describe → configure ComfyUI → rende
 
 `/` → `/upload` → `/describe` → `/configure` → `/process` → `/complete` · `/archive`
 
-Pipeline state: `sessionStorage` via `lib/pipeline-storage.ts`. `imageId` in URL between steps. Archive blend uses `imageIds` → txt2img `mode=blend`.
+Pipeline state: `sessionStorage` via `lib/pipeline-description.ts`, `lib/pipeline-config.ts` (re-exported from `lib/pipeline-storage.ts`). `imageId` in URL between steps. Archive blend uses `imageIds` → txt2img `mode=blend`.
 
 ## Key paths
 
-- `app/api/` — route handlers (describe SSE, comfyui process SSE)
-- `lib/comfyui.ts` — programmatic workflows (Flux `UnetLoaderGGUF`, SD `CheckpointLoaderSimple`)
-- `lib/comfyui-process-stream.ts` — shared process subscription + recovery poll
-- `lib/output-archive.ts` — archive listing from `comfyui/output/`
+- `app/api/` — thin route handlers; logic in `lib/`
+- `lib/describe-route.ts` — describe SSE, `buildDescribePrompt()`
+- `lib/comfyui-process-route.ts` — process SSE
+- `lib/comfyui-workflow.ts` — Flux; `lib/comfyui-workflow-sd.ts` — SD
+- `lib/comfyui-poll.ts` — WS + HTTP poll orchestration
+- `lib/comfyui-process-stream.ts` — client process subscription + recovery
+- `lib/output-archive.ts` — archive listing, safety, copy-to-upload
+- `config/models.json` — Ollama default model; no custom modelfile
 - `types/index.ts` — shared API/types
-- `docs/` — architecture, API, configuration (prefer over stale comments)
+- `docs/` — architecture, development, API (prefer over stale comments)
 
 ## Scope
 
