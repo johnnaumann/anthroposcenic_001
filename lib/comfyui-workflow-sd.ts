@@ -5,7 +5,88 @@ import {
   getAvailableSamplers,
   parseObjectInfoStringList,
 } from '@/lib/comfyui-helpers';
+import { appendSdHiresRefine } from '@/lib/comfyui-workflow-sd-hires';
 import { ComfyUIWorkflow } from '@/lib/comfyui-workflow-types';
+
+const QUALITY_BOOSTER =
+  'highly detailed, intricate, rich texture, expressive brushwork, dramatic lighting, vivid color, dynamic composition, fine art, masterpiece, best quality';
+const ANTI_SOFT_NEGATIVE = 'soft focus, oversmoothed, low detail, plastic texture, motion blur';
+
+function buildSdPrompts(
+  description: string,
+  negativePrompt: string,
+  qualityBoost: boolean
+): { positivePrompt: string; finalNegativePrompt: string } {
+  const cleanedDescription = description.trim().replace(/[\s,]+$/, '');
+  const positivePrompt = qualityBoost
+    ? `${cleanedDescription}, ${QUALITY_BOOSTER}`
+    : description;
+  const finalNegativePrompt = qualityBoost
+    ? `${negativePrompt.trim().replace(/[\s,]+$/, '')}, ${ANTI_SOFT_NEGATIVE}`
+    : negativePrompt;
+  return { positivePrompt, finalNegativePrompt };
+}
+
+function addSdInputLatent(
+  workflow: ComfyUIWorkflow,
+  params: {
+    useImage: boolean;
+    imageFilename: string | null;
+    useImageResize: boolean;
+    maxWidth: number;
+    maxHeight: number;
+    txt2imgWidth: number;
+    txt2imgHeight: number;
+    vae: [string, number];
+  }
+): [string, number] {
+  const {
+    useImage,
+    imageFilename,
+    useImageResize,
+    maxWidth,
+    maxHeight,
+    txt2imgWidth,
+    txt2imgHeight,
+    vae,
+  } = params;
+
+  if (useImage) {
+    workflow['load'] = {
+      class_type: 'LoadImage',
+      inputs: { image: imageFilename! },
+      _meta: { title: 'Load Image' },
+    };
+    let pixelSrc: [string, number] = ['load', 0];
+    if (useImageResize) {
+      workflow['resize'] = {
+        class_type: 'ImageScale',
+        inputs: {
+          image: ['load', 0],
+          upscale_method: 'lanczos',
+          crop: 'disabled',
+          width: maxWidth,
+          height: maxHeight,
+        },
+        _meta: { title: 'Resize Image' },
+      };
+      pixelSrc = ['resize', 0];
+    }
+    workflow['enc'] = {
+      class_type: 'VAEEncode',
+      inputs: { pixels: pixelSrc, vae },
+      _meta: { title: 'VAE Encode' },
+    };
+    return ['enc', 0];
+  }
+
+  workflow['empty'] = {
+    class_type: 'EmptyLatentImage',
+    inputs: { width: txt2imgWidth, height: txt2imgHeight, batch_size: 1 },
+    _meta: { title: 'Empty Latent Image (txt2img)' },
+  };
+  return ['empty', 0];
+}
 
 export interface SdWorkflowBuildParams {
   checkpoint: string;
@@ -136,16 +217,11 @@ export function buildSdWorkflow(params: SdWorkflowBuildParams): ComfyUIWorkflow 
     controlNetStrength,
   } = params;
 
-  const QUALITY_BOOSTER =
-    'highly detailed, intricate, rich texture, expressive brushwork, dramatic lighting, vivid color, dynamic composition, fine art, masterpiece, best quality';
-  const ANTI_SOFT_NEGATIVE = 'soft focus, oversmoothed, low detail, plastic texture, motion blur';
-  const cleanedDescription = description.trim().replace(/[\s,]+$/, '');
-  const positivePrompt = qualityBoost
-    ? `${cleanedDescription}, ${QUALITY_BOOSTER}`
-    : description;
-  const finalNegativePrompt = qualityBoost
-    ? `${negativePrompt.trim().replace(/[\s,]+$/, '')}, ${ANTI_SOFT_NEGATIVE}`
-    : negativePrompt;
+  const { positivePrompt, finalNegativePrompt } = buildSdPrompts(
+    description,
+    negativePrompt,
+    qualityBoost
+  );
 
   const workflow: ComfyUIWorkflow = {};
 
@@ -177,42 +253,16 @@ export function buildSdWorkflow(params: SdWorkflowBuildParams): ComfyUIWorkflow 
     _meta: { title: 'CLIP Text Encode (Negative)' },
   };
 
-  let baseLatent: [string, number];
-  if (useImage) {
-    workflow['load'] = {
-      class_type: 'LoadImage',
-      inputs: { image: imageFilename! },
-      _meta: { title: 'Load Image' },
-    };
-    let pixelSrc: [string, number] = ['load', 0];
-    if (useImageResize) {
-      workflow['resize'] = {
-        class_type: 'ImageScale',
-        inputs: {
-          image: ['load', 0],
-          upscale_method: 'lanczos',
-          crop: 'disabled',
-          width: maxWidth,
-          height: maxHeight,
-        },
-        _meta: { title: 'Resize Image' },
-      };
-      pixelSrc = ['resize', 0];
-    }
-    workflow['enc'] = {
-      class_type: 'VAEEncode',
-      inputs: { pixels: pixelSrc, vae },
-      _meta: { title: 'VAE Encode' },
-    };
-    baseLatent = ['enc', 0];
-  } else {
-    workflow['empty'] = {
-      class_type: 'EmptyLatentImage',
-      inputs: { width: txt2imgWidth, height: txt2imgHeight, batch_size: 1 },
-      _meta: { title: 'Empty Latent Image (txt2img)' },
-    };
-    baseLatent = ['empty', 0];
-  }
+  const baseLatent = addSdInputLatent(workflow, {
+    useImage,
+    imageFilename,
+    useImageResize,
+    maxWidth,
+    maxHeight,
+    txt2imgWidth,
+    txt2imgHeight,
+    vae,
+  });
 
   workflow['ksampler'] = {
     class_type: 'KSampler',
@@ -236,105 +286,27 @@ export function buildSdWorkflow(params: SdWorkflowBuildParams): ComfyUIWorkflow 
     inputs: { samples: ['ksampler', 0], vae },
     _meta: { title: 'VAE Decode (Base)' },
   };
-  let imageOut: [string, number] = ['decode', 0];
 
-  if (useHires && upscaleModel) {
-    workflow['upscale_model'] = {
-      class_type: 'UpscaleModelLoader',
-      inputs: { model_name: upscaleModel },
-      _meta: { title: 'Load Upscale Model' },
-    };
-    workflow['upscale'] = {
-      class_type: 'ImageUpscaleWithModel',
-      inputs: { upscale_model: ['upscale_model', 0], image: ['decode', 0] },
-      _meta: { title: 'ESRGAN Upscale' },
-    };
-    workflow['downscale'] = {
-      class_type: 'ImageScaleBy',
-      inputs: { image: ['upscale', 0], upscale_method: 'lanczos', scale_by: hiresFactor / 4 },
-      _meta: { title: 'Supersample Downscale' },
-    };
-    workflow['enc_hires'] = {
-      class_type: 'VAEEncode',
-      inputs: { pixels: ['downscale', 0], vae },
-      _meta: { title: 'VAE Encode (Hires)' },
-    };
-
-    let refinePos: [string, number] = ['pos', 0];
-    let refineNeg: [string, number] = ['neg', 0];
-    if (useTileRefine) {
-      workflow['cn_loader'] = {
-        class_type: 'ControlNetLoader',
-        inputs: { control_net_name: tileModel! },
-        _meta: { title: 'Load ControlNet (Tile)' },
-      };
-      workflow['cn_apply'] = {
-        class_type: 'ControlNetApplyAdvanced',
-        inputs: {
-          positive: ['pos', 0],
-          negative: ['neg', 0],
-          control_net: ['cn_loader', 0],
-          image: ['downscale', 0],
-          strength: controlNetStrength,
-          start_percent: 0,
-          end_percent: 0.8,
-        },
-        _meta: { title: 'Apply ControlNet (Tile)' },
-      };
-      refinePos = ['cn_apply', 0];
-      refineNeg = ['cn_apply', 1];
-    }
-    workflow['ksampler_hires'] = {
-      class_type: 'KSampler',
-      inputs: {
-        seed,
-        steps: hiresSteps,
-        cfg: cfgScale,
-        sampler_name: sampler,
-        scheduler,
-        denoise: hiresDenoise,
-        positive: refinePos,
-        negative: refineNeg,
-        model: modelSrc,
-        latent_image: ['enc_hires', 0],
-      },
-      _meta: { title: 'Hires Refine Sampler' },
-    };
-    workflow['decode_hires'] = {
-      class_type: 'VAEDecode',
-      inputs: { samples: ['ksampler_hires', 0], vae },
-      _meta: { title: 'VAE Decode (Hires)' },
-    };
-    imageOut = ['decode_hires', 0];
-  } else if (useHires) {
-    workflow['latent_upscale'] = {
-      class_type: 'LatentUpscaleBy',
-      inputs: { samples: ['ksampler', 0], upscale_method: 'bislerp', scale_by: hiresFactor },
-      _meta: { title: 'Latent Upscale' },
-    };
-    workflow['ksampler_hires'] = {
-      class_type: 'KSampler',
-      inputs: {
-        seed,
-        steps: hiresSteps,
-        cfg: cfgScale,
-        sampler_name: sampler,
-        scheduler,
-        denoise: hiresDenoise,
-        positive: ['pos', 0],
-        negative: ['neg', 0],
-        model: modelSrc,
-        latent_image: ['latent_upscale', 0],
-      },
-      _meta: { title: 'Hires Refine Sampler' },
-    };
-    workflow['decode_hires'] = {
-      class_type: 'VAEDecode',
-      inputs: { samples: ['ksampler_hires', 0], vae },
-      _meta: { title: 'VAE Decode (Hires)' },
-    };
-    imageOut = ['decode_hires', 0];
-  }
+  const imageOut = appendSdHiresRefine(
+    workflow,
+    {
+      seed,
+      hiresSteps,
+      cfgScale,
+      sampler,
+      scheduler,
+      hiresDenoise,
+      hiresFactor,
+      upscaleModel,
+      useHires,
+      useTileRefine,
+      tileModel,
+      controlNetStrength,
+      modelSrc,
+      vae,
+    },
+    ['decode', 0]
+  );
 
   workflow['save'] = {
     class_type: 'SaveImage',
