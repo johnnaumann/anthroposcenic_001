@@ -16,10 +16,16 @@
 | Command | Description |
 |---------|-------------|
 | `npm run setup` | Pull `llava:7b` + ComfyUI install + Flux GGUF |
-| `npm run setup:ollama` | Pull `llava:7b` only |
+| `npm run setup:ollama` | Pull `llava:7b` only (skips if already installed) |
 | `npm run setup:comfyui` | ComfyUI venv + Flux GGUF only |
 
 Install Ollama itself first (`brew install ollama` or https://ollama.com/download).
+
+**ComfyUI reinstall:** `FORCE=1 npm run setup:comfyui` removes a broken or partial `comfyui/` and reinstalls.
+
+**Python:** ComfyUI needs Python 3.10–3.12. Pins in `.tool-versions` (asdf). Override: `PYTHON=python3.12 bash scripts/setup-comfyui.sh`.
+
+**npm registry:** project `.npmrc` uses the public registry so `npm install` works without a corporate npm config.
 
 ## Optional
 

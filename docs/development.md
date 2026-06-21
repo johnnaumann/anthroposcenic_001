@@ -100,6 +100,11 @@ lib/
 config/
   models.json                     # Ollama default (llava:7b) + vision registry
 
+.env.example                      # template for .env.local
+.npmrc                            # public npm registry (reliable fresh installs)
+.tool-versions                    # asdf: nodejs + python pins
+.nvmrc                            # nvm: Node 22
+
 types/
   index.ts                        # shared API / domain types
 

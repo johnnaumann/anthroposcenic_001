@@ -2,7 +2,7 @@
 
 ## Environment variables
 
-Create `.env.local` in the project root. All optional unless noted.
+Copy [`.env.example`](../.env.example) to `.env.local` in the project root. All variables are optional unless you need overrides.
 
 ```env
 # Ollama

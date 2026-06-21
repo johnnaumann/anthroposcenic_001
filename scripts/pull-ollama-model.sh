@@ -7,7 +7,7 @@ set -e
 
 DEFAULT_MODEL="llava:7b"
 
-echo "Pulling Ollama vision model for describe"
+echo "Ollama vision model setup ($DEFAULT_MODEL)"
 echo ""
 
 if ! command -v ollama &> /dev/null; then
@@ -24,6 +24,11 @@ if ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
         echo "Could not start Ollama. Run: ollama serve"
         exit 1
     fi
+fi
+
+if ollama list 2>/dev/null | awk '{print $1}' | grep -qx "$DEFAULT_MODEL"; then
+    echo "Already installed: $DEFAULT_MODEL"
+    exit 0
 fi
 
 echo "Pulling $DEFAULT_MODEL..."

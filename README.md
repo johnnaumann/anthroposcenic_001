@@ -61,15 +61,16 @@ API routes under `app/api/` delegate to `lib/` (see [docs/development.md](docs/d
 
 ## Quick setup
 
-**Requirements:** Node.js 18+, Python 3.10+, 16GB+ RAM, ~20GB disk for models.
+**Requirements:** Node.js 18+, Python 3.10–3.12 (see `.tool-versions`), 16GB+ RAM, ~20GB disk for models.
 
 ```bash
-git clone https://github.com/yourusername/anthroposcenic.git
-cd anthroposcenic
+git clone https://github.com/johnnaumann/anthroposcenic_001.git
+cd anthroposcenic_001
 npm install
+cp .env.example .env.local   # optional overrides
 ```
 
-**Ollama**
+**Ollama** (describe step)
 
 ```bash
 # macOS
@@ -79,8 +80,18 @@ brew install ollama
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
+Staged setup (recommended on first install):
+
 ```bash
-npm run setup    # pull llava:7b + ComfyUI + Flux
+npm run setup:ollama    # pull llava:7b (~5GB) — skip if already installed
+npm run dev             # app + describe work; process needs ComfyUI below
+npm run setup:comfyui   # ComfyUI venv + Flux GGUF (~15GB+)
+```
+
+Or all at once:
+
+```bash
+npm run setup
 ```
 
 Optional Stable Diffusion stack:
@@ -101,7 +112,7 @@ npm run dev
 | Ollama | http://localhost:11434 |
 | ComfyUI | http://localhost:8188 (on first process) |
 
-Optional: `.env.local` — see [docs/configuration.md](docs/configuration.md).
+Optional: copy [`.env.example`](.env.example) to `.env.local` — see [docs/configuration.md](docs/configuration.md).
 
 ## Documentation
 

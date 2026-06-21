@@ -21,6 +21,8 @@ npm run setup:ollama    # pulls llava:7b
 
 Describe stream ends with no text: confirm `llava:7b` is installed (`ollama list`) and Ollama is running on `OLLAMA_HOST`.
 
+If setup-comfyui fails mid-way, the script removes the incomplete `comfyui/` directory. Re-run with `FORCE=1 npm run setup:comfyui` if a partial install remains.
+
 Optional alternate vision model:
 
 ```bash
