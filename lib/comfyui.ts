@@ -1,5 +1,13 @@
 import { ComfyUIStatus } from '@/types';
 import { DEFAULT_NEGATIVE_PROMPT } from '@/lib/comfyui-defaults';
+import {
+  buildOutputImagePath,
+  ComfyHistoryOutputs,
+  fetchComfyObjectInfo,
+  findComfyModelsDirFile,
+  findFirstHistoryOutputImage,
+  parseObjectInfoStringList,
+} from '@/lib/comfyui-helpers';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -55,29 +63,15 @@ export async function checkComfyUIAvailability(): Promise<boolean> {
  */
 export async function getAvailableSamplers(): Promise<string[]> {
   try {
-    const response = await fetch(`${COMFYUI_HOST}/object_info`, {
-      method: 'GET',
-    });
+    const data = await fetchComfyObjectInfo(COMFYUI_HOST);
+    const ksamplerInfo = (data.KSampler as { input?: { required?: { sampler_name?: unknown } } } | undefined)
+      ?.input?.required?.sampler_name;
+    const list = parseObjectInfoStringList(ksamplerInfo);
 
-    if (!response.ok) {
-      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    if (list) {
+      return list;
     }
 
-    const data = await response.json();
-    const ksamplerInfo = data?.KSampler?.input?.required?.sampler_name;
-    
-    // The sampler list format is typically [[list], {metadata}]
-    if (Array.isArray(ksamplerInfo) && ksamplerInfo.length > 0) {
-      // Check if first element is an array of sampler names
-      if (Array.isArray(ksamplerInfo[0]) && ksamplerInfo[0].length > 0) {
-        return ksamplerInfo[0] as string[];
-      }
-      // Or if it's a direct list of strings
-      if (typeof ksamplerInfo[0] === 'string') {
-        return ksamplerInfo as string[];
-      }
-    }
-    
     // Fallback: return common sampler names
     return ['euler', 'euler_ancestral', 'dpm_2', 'dpm_2_ancestral', 'dpmpp_2m', 'dpmpp_2s_ancestral', 'lms', 'plms', 'ddim'];
   } catch (error) {
@@ -126,30 +120,16 @@ async function getValidSampler(requestedSampler: string): Promise<string> {
  */
 async function getAvailableCheckpoints(): Promise<string[]> {
   try {
-    // First, try to get from API
-    const response = await fetch(`${COMFYUI_HOST}/object_info`, {
-      method: 'GET',
-    });
+    const data = await fetchComfyObjectInfo(COMFYUI_HOST);
+    const checkpointInfo = (
+      data.CheckpointLoaderSimple as { input?: { required?: { ckpt_name?: unknown } } } | undefined
+    )?.input?.required?.ckpt_name;
+    const list = parseObjectInfoStringList(checkpointInfo);
 
-    if (!response.ok) {
-      throw new Error(`ComfyUI API error: ${response.status} ${response.statusText}`);
+    if (list) {
+      return list;
     }
 
-    const data = await response.json();
-    const checkpointInfo = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name;
-    
-    // The checkpoint list format is typically [[list], {metadata}]
-    if (Array.isArray(checkpointInfo) && checkpointInfo.length > 0) {
-      // Check if first element is an array of checkpoint names
-      if (Array.isArray(checkpointInfo[0]) && checkpointInfo[0].length > 0) {
-        return checkpointInfo[0] as string[];
-      }
-      // Or if it's a direct list of strings
-      if (typeof checkpointInfo[0] === 'string') {
-        return checkpointInfo as string[];
-      }
-    }
-    
     // If API doesn't return checkpoints, try filesystem (server-side only)
     // This will only work in Node.js environment
     if (typeof process !== 'undefined' && process.versions?.node) {
@@ -356,6 +336,15 @@ export function getComfyUIOutputImage(filename: string): string {
   return `/api/comfyui/output?filename=${encodeURIComponent(filename)}`;
 }
 
+function resolveHistoryOutputImageUrl(outputs: ComfyHistoryOutputs): string | null {
+  const image = findFirstHistoryOutputImage(outputs);
+  if (!image) {
+    return null;
+  }
+
+  return getComfyUIOutputImage(buildOutputImagePath(image));
+}
+
 /**
  * Find the most recent output image in the ComfyUI output directory
  * This is a fallback when history API doesn't return the image
@@ -495,30 +484,9 @@ export async function findLatestOutputImage(
  * Used by the hires pass for crisp, pixel-space detail. Returns null if none found.
  */
 async function getAvailableUpscaleModel(): Promise<string | null> {
-  if (typeof process === 'undefined' || !process.versions?.node) return null;
-  try {
-    const { readdir, stat } = await import('fs/promises');
-    const { join } = await import('path');
-    const dir = join(process.cwd(), 'comfyui', 'models', 'upscale_models');
-    const files = await readdir(dir);
-    const models = files.filter(
-      (f) => f.endsWith('.pth') || f.endsWith('.safetensors') || f.endsWith('.pt')
-    );
-    // Prefer a sharp, detail-oriented model when several are present.
-    const preferred = models.find((m) => /ultrasharp|remacri|siax|nmkd|4x/i.test(m));
-    const pick = preferred || models[0];
-    if (!pick) return null;
-    // Guard against tiny stub/placeholder files.
-    try {
-      const { size } = await stat(join(dir, pick));
-      if (size < 1024 * 1024) return null; // < 1MB → not a real model
-    } catch {
-      /* ignore stat failure, assume usable */
-    }
-    return pick;
-  } catch {
-    return null;
-  }
+  return findComfyModelsDirFile('upscale_models', ['.pth', '.safetensors', '.pt'], {
+    preferPattern: /ultrasharp|remacri|siax|nmkd|4x/i,
+  });
 }
 
 /**
@@ -526,30 +494,9 @@ async function getAvailableUpscaleModel(): Promise<string | null> {
  * matching a kind (e.g. 'tile', 'canny', 'depth'). Returns null if none found.
  */
 async function getAvailableControlNet(kind?: string): Promise<string | null> {
-  if (typeof process === 'undefined' || !process.versions?.node) return null;
-  try {
-    const { readdir, stat } = await import('fs/promises');
-    const { join } = await import('path');
-    const dir = join(process.cwd(), 'comfyui', 'models', 'controlnet');
-    const files = await readdir(dir);
-    const models = files.filter(
-      (f) => f.endsWith('.safetensors') || f.endsWith('.pth') || f.endsWith('.pt')
-    );
-    const matches = kind
-      ? models.filter((m) => m.toLowerCase().includes(kind.toLowerCase()))
-      : models;
-    const pick = matches[0];
-    if (!pick) return null;
-    try {
-      const { size } = await stat(join(dir, pick));
-      if (size < 1024 * 1024) return null; // < 1MB → not a real model
-    } catch {
-      /* ignore stat failure, assume usable */
-    }
-    return pick;
-  } catch {
-    return null;
-  }
+  return findComfyModelsDirFile('controlnet', ['.safetensors', '.pth', '.pt'], {
+    nameFilter: kind ? (name) => name.toLowerCase().includes(kind.toLowerCase()) : undefined,
+  });
 }
 
 /** True if a model name refers to a Flux model (GGUF UNet or a flux*.safetensors). */
@@ -1148,19 +1095,12 @@ export async function* pollComfyUIJob(
               console.log(`[Poll] Found job in history, checking outputs...`, Object.keys(jobData.outputs || {}));
               
               if (jobData.outputs) {
-                for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
-                  console.log(`[Poll] Checking node ${nodeId} for images...`);
-                  if (nodeOutputs.images && nodeOutputs.images.length > 0) {
-                    const image = nodeOutputs.images[0];
-                    const filename = image.filename;
-                    const subfolder = image.subfolder || '';
-                    const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
-                    const imageUrl = getComfyUIOutputImage(imagePath);
-                    
-                    console.log(`✅ ComfyUI job ${promptId} completed via history! Image: ${filename}, Path: ${imagePath}, URL: ${imageUrl}`);
-                    yield { status: 'complete', progress: 100, imageUrl };
-                    return;
-                  }
+                console.log(`[Poll] Found job in history, checking outputs...`, Object.keys(jobData.outputs));
+                const imageUrl = resolveHistoryOutputImageUrl(jobData.outputs);
+                if (imageUrl) {
+                  console.log(`✅ ComfyUI job ${promptId} completed via history! URL: ${imageUrl}`);
+                  yield { status: 'complete', progress: 100, imageUrl };
+                  return;
                 }
               }
               console.log(`[Poll] History found but no images in outputs`);
@@ -1306,21 +1246,11 @@ export async function* pollComfyUIJob(
         // Check for outputs in the job data (ComfyUI history structure)
         if (jobData.outputs) {
           console.log(`[HTTP Poll] Checking outputs for prompt ${promptId}:`, Object.keys(jobData.outputs));
-          // Find SaveImage node output (node "9" in our workflow)
-          for (const [nodeId, nodeOutputs] of Object.entries(jobData.outputs)) {
-            console.log(`[HTTP Poll] Checking node ${nodeId}:`, nodeOutputs);
-            if (nodeOutputs.images && nodeOutputs.images.length > 0) {
-              const image = nodeOutputs.images[0];
-              const filename = image.filename;
-              const subfolder = image.subfolder || '';
-              // Handle empty subfolder correctly
-              const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
-              const imageUrl = getComfyUIOutputImage(imagePath);
-              
-              console.log(`✅ ComfyUI job ${promptId} completed! Image: ${filename}, Path: ${imagePath}, URL: ${imageUrl}`);
-              yield { status: 'complete', progress: 100, imageUrl };
-              return;
-            }
+          const imageUrl = resolveHistoryOutputImageUrl(jobData.outputs);
+          if (imageUrl) {
+            console.log(`✅ ComfyUI job ${promptId} completed! URL: ${imageUrl}`);
+            yield { status: 'complete', progress: 100, imageUrl };
+            return;
           }
           console.log(`[HTTP Poll] No images found in outputs for prompt ${promptId}`);
           
@@ -1342,17 +1272,11 @@ export async function* pollComfyUIJob(
             if (recheckHistory && recheckHistory[promptId]) {
               const recheckData = recheckHistory[promptId] as typeof jobData;
               if (recheckData.outputs) {
-                for (const [nodeId, nodeOutputs] of Object.entries(recheckData.outputs)) {
-                  if (nodeOutputs.images && nodeOutputs.images.length > 0) {
-                    const image = nodeOutputs.images[0];
-                    const filename = image.filename;
-                    const subfolder = image.subfolder || '';
-                    const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
-                    const imageUrl = getComfyUIOutputImage(imagePath);
-                    console.log(`✅ ComfyUI job ${promptId} completed after recheck! Image: ${filename}`);
-                    yield { status: 'complete', progress: 100, imageUrl };
-                    return;
-                  }
+                const imageUrl = resolveHistoryOutputImageUrl(recheckData.outputs);
+                if (imageUrl) {
+                  console.log(`✅ ComfyUI job ${promptId} completed after recheck!`);
+                  yield { status: 'complete', progress: 100, imageUrl };
+                  return;
                 }
               }
             }
@@ -1380,18 +1304,11 @@ export async function* pollComfyUIJob(
           const completed = jobData.status.completed[0];
           
           if (completed.outputs) {
-            for (const nodeOutputs of Object.values(completed.outputs)) {
-              if (nodeOutputs.images && nodeOutputs.images.length > 0) {
-                const image = nodeOutputs.images[0];
-                const filename = image.filename;
-                const subfolder = image.subfolder || '';
-                const imagePath = subfolder ? `${subfolder}/${filename}` : filename;
-                const imageUrl = getComfyUIOutputImage(imagePath);
-                
-                console.log(`ComfyUI job ${promptId} completed! Image: ${filename}`);
-                yield { status: 'complete', progress: 100, imageUrl };
-                return;
-              }
+            const imageUrl = resolveHistoryOutputImageUrl(completed.outputs);
+            if (imageUrl) {
+              console.log(`ComfyUI job ${promptId} completed!`);
+              yield { status: 'complete', progress: 100, imageUrl };
+              return;
             }
           }
         }
