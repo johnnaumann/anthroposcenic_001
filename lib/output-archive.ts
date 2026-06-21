@@ -10,6 +10,15 @@ import { ArchiveImageKind, OutputImageEntry, UploadResponse } from '@/types';
 export const OUTPUT_DIR = join(process.cwd(), 'comfyui', 'output');
 export const UPLOAD_DIR = resolveUploadDir();
 
+export function isSafeOutputFilename(filename: string): boolean {
+  return (
+    Boolean(filename) &&
+    !filename.includes('..') &&
+    !filename.includes('/') &&
+    !filename.includes('\\')
+  );
+}
+
 const ARCHIVE_FILENAME_RE = /^anthroposcenic_.+\.(png|jpe?g|webp|gif)$/i;
 const UPLOAD_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(png|jpe?g|webp|gif)$/i;
 const UPLOAD_IMAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

@@ -1,7 +1,7 @@
 import { readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { NextRequest, NextResponse } from 'next/server';
-import { OUTPUT_DIR } from '@/lib/output-archive';
+import { OUTPUT_DIR, isSafeOutputFilename } from '@/lib/output-archive';
 
 const MIME_TYPES: Record<string, string> = {
   png: 'image/png',
@@ -10,15 +10,6 @@ const MIME_TYPES: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
 };
-
-export function isSafeOutputFilename(filename: string): boolean {
-  return (
-    Boolean(filename) &&
-    !filename.includes('..') &&
-    !filename.includes('/') &&
-    !filename.includes('\\')
-  );
-}
 
 function outputMimeType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || 'png';

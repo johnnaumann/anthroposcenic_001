@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isSafeOutputFilename, serveOutputImageFile } from '@/lib/serve-output-image';
+import { isSafeOutputFilename } from '@/lib/output-archive';
+import { serveOutputImageFile } from '@/lib/serve-output-image';
 
 const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
 
